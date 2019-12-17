@@ -6,7 +6,6 @@ print(socket._VERSION)
 
 admins = {
 "wolsne",
-"pizza_fart",
 "CaptainZidgel",
 "Antecedent",
 "Slicerogue",
@@ -39,8 +38,7 @@ end
 
 function generateUsersAlpha()
 	usersAlpha = {}
-	local users = addup:getUsers()
-	for _,u in pairs(users) do
+	for _,u in pairs(addup:getUsers()) do
 		table.insert(usersAlpha, u:getName():lower())
 	end
 	table.sort(usersAlpha)
@@ -384,22 +382,20 @@ client:hook("OnUserConnected", function(event)
 	print("CONNECT FROM " .. name)
 	print("L " .. inspect(players[name]))
 	if players[name] == nil then
-	print("We gamin'")
 		players[name] = {
 			medicImmunity = false,
-			object = v,
+			object = event.user,
 			volunteered = false,
 			captain = false,
-			channelB = v:getChannel()
+			channelB = event.user:getChannel(),
+			dontUpdate = false
 		}
 	else
-		players[name].object = v
+		players[name].object = event.user
 		players[name].volunteered = false
 		players[name].captain = false
-		players[name].channelB = v:getChannel()
+		players[name].channelB = event.user:getChannel()
 	end
-	print(inspect(event.user:getChannel()))
-	print("We won mr stark")
 end)
 
 client:hook("OnUserRemove", function(event)

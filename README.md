@@ -1,7 +1,7 @@
 Pug Assistant
 ============
 The mumble bot written in lua-mumble to assist with running pick up games.\
-Featuring such features as featured:\
+Featuring such features as featured:
 
 Features
 --------
@@ -9,7 +9,7 @@ Keeps track of who has and hasn't played medic.  \
 `!roll` new medics and never get a duplicate.  \
 Automatically moves medics to their rooms.  \
 `!unlink/!link` game rooms without needing to enter them individually and right click -> unlink all.  \
-`!mute` all players who aren't admins or captains, or `!mute all` players who aren't admins.\
+`!mute` all players who aren't admins or captains, or `!mute all` players who aren't admins.
 
 Installing
 ==========
@@ -20,7 +20,7 @@ Get the dependencies for the module\
 CD into lua-mumble and `make`.  \
 Place the main.lua into lua-mumble.  \
 Run the command `luajit main.lua`  \
-The bot will run.\
+The bot will run.
 
 Using it
 --------
