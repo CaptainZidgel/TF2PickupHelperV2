@@ -1,24 +1,42 @@
 local mumble = require "mumble"
 local inspect = require "inspect"
 local socket = require "socket"
+local redis = require "redis"
 
 print(socket._VERSION)
 
 admins = {
 "wolsne",
 "CaptainZidgel",
+"pizza_fart",
 "Antecedent",
 "Slicerogue",
 "Okiewaka",
 "Console-",
 "dave2",
-"HEDGEHOG_HERO"
+"HEDGEHOG_HERO",
+"fyg"
 }
+
+macadamias = {
+"Zam"
+}
+
+function isMac(s)
+	for _,v in ipairs(admins) do
+		if v:lower() == s:getName():lower() and s:getID() ~= 0 then --0 means unregistered
+			return true
+		end
+	end
+end
 
 usersAlpha = {}
 
 local client, err = assert(mumble.connect("voice.nut.city", 42069, "lm.pem", "lm.key"))
 client:auth("TESTBOT")
+
+--[[local rdc = redis.connect('127.0.0.1', 6379)
+local redischannels = {'mumble'}]]--
 
 function find(p, c)		--parent, child | The library technically has a way to do this within it but I don't understand it :D
 	for _,v in pairs(client:getChannels()) do
@@ -141,13 +159,17 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 		print(v:getName():lower())
 		local u = v:getName():lower()
 		players[u] = {
-			medicImmunity = false,
 			object = v,
 			volunteered = false,
 			captain = false,
 			dontUpdate = false,
-			channelB = v:getChannel()
+			channelB = v:getChannel(),
 		}
+		if isMac(v) then
+			players[u].medicImmunity = true
+		else
+			players[u].medicImmunity = false
+		end
 	end
 	channelTable = {
 		room1 = {
@@ -181,8 +203,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 		    }
 		}
 	}
-	lenprintout()
-	
+	--lenprintout()
 end)
 
 function lenprintout()
@@ -203,8 +224,7 @@ client:hook("OnMessage", function(event)
 	msg = msg:gsub("<.+>", ""):gsub("\n*", ""):gsub("%s$", "")
 	local sender = event.actor
 	local sentchannel = event.actor:getChannel()
-	print("MSG from".. sender:getName() .. ":		                         	" .. msg)
-
+	print("MSG:", sender:getName(), msg)
 	if string.find(msg, "!v ", 1) == 1 then
 		if sentchannel == addup or sentchannel == fatkids then
 			local team = msg:sub(4,6):lower()
@@ -230,7 +250,7 @@ client:hook("OnMessage", function(event)
 				elseif team == "blu" then
 					team = server.blu.object
 				end
-				for _,user in team:getUsers() do
+				for _,user in pairs(team:getUsers()) do
 					if players[user:getName():lower()].volunteered then return end					players[user:getName():lower()].medicImmunity = false
 					players[user:getName():lower()].captain = false
 					user:move(addup)
@@ -263,17 +283,17 @@ client:hook("OnMessage", function(event)
 		end
 		if string.find(msg, "!dc ", 1) == 1 then
 			local cnl = tonumber(msg:sub(5))
-			local room
+			local server
 			if cnl == 1 then
-				room = channelTable.room1
+				server = channelTable.room1
 			elseif cnl == 2 then
-				room = channelTable.room2
+				server = channelTable.room2
 			elseif cnl == 3 then
-				room = channelTable.room3
+				server = channelTable.room3
 			end
 			sentchannel:message("Attempting to dump channels...")
-			print("Trying to dump channel " .. msg:sub(8))
-			local red, blu = room.red.object, room.blu.object
+			print("Trying to dump channel " .. msg:sub(5))
+			local red, blu = server.red.object, server.blu.object
 			for _,u in pairs(red:getUsers()) do
 				players[u:getName():lower()].captain = false
 				players[u:getName():lower()].volunteered = false
@@ -300,9 +320,11 @@ client:hook("OnMessage", function(event)
 		end
 		if string.find(msg, "!clearmh", 1) == 1 then
 			for k,v in pairs(players) do
-				v.medicImmunity = false
-				v.captain = false
-				v.volunteered = false
+				if not isMac(v.object) then
+					v.medicImmunity = false
+					v.captain = false
+					v.volunteered = false
+				end
 			end
 			print(sender:getName() .. " cleared medic history.")
 		end
@@ -380,16 +402,19 @@ end)
 client:hook("OnUserConnected", function(event)
 	local name = event.user:getName():lower()
 	print("CONNECT FROM " .. name)
-	print("L " .. inspect(players[name]))
 	if players[name] == nil then
 		players[name] = {
-			medicImmunity = false,
 			object = event.user,
 			volunteered = false,
 			captain = false,
 			channelB = event.user:getChannel(),
 			dontUpdate = false
 		}
+		if isMac(event.user) then
+			players[name].medicImmunity = true
+		else
+			players[name].medicImmunity = false
+		end
 	else
 		players[name].object = event.user
 		players[name].volunteered = false
@@ -399,7 +424,6 @@ client:hook("OnUserConnected", function(event)
 end)
 
 client:hook("OnUserRemove", function(event)
-	print("DISCONNECT")
 	local u = players[event.user:getName():lower()]
 	for _,server in pairs(channelTable) do
 		for n,room in pairs(server) do
@@ -409,8 +433,7 @@ client:hook("OnUserRemove", function(event)
 			end
 		end
 	end
-	lenprintout()
-	print("DISCO " .. u.channelB:getName())
+	--lenprintout()
 end)
 
 client:hook("OnUserChannel", function(event)	
@@ -433,19 +456,37 @@ client:hook("OnUserChannel", function(event)
 		u.dontUpdate = false
 	end
 	u.channelB = event.to
-	lenprintout()
+	--lenprintout()
 end)
 
+--[[co = coroutine.create(function()
+	for msg, abort in rdc:pubsub({subscribe = redischannels}) do
+		if msg.kind == 'subscribe' then
+			print('subscribed to channel',msg.channel)
+		elseif msg.kind == 'message' then
+			if msg.channel == 'mumble' then
+				print("Message rec", msg.payload)
+			end
+		end
+		coroutine.yield()
+	end	
+end)]]--
+
+--[[update = coroutine.create(function()
+	client:update()
+	coroutine.yield()
+end)]]--
+
 client:hook("OnTick", function()
-	
+
 end)
 
 client:hook("OnChannelState", function(channel)
 
 end)
 
+
 while client:isConnected() do
 	client:update()
 	mumble.sleep(0.01)
 end
-
