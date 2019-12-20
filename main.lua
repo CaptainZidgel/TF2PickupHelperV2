@@ -1,42 +1,50 @@
+local main = {}
 local mumble = require "mumble"
 local inspect = require "inspect"
 local socket = require "socket"
 local redis = require "redis"
+local csv = require "csv"
 
 print(socket._VERSION)
 
-admins = {
-"wolsne",
-"CaptainZidgel",
-"pizza_fart",
-"Antecedent",
-"Slicerogue",
-"Okiewaka",
-"Console-",
-"dave2",
-"HEDGEHOG_HERO",
-"fyg"
-}
+function loadCSV(file)
+	local t = {}
+	local f = csv.open(file)
+	for fields in f:lines() do
+		table.insert(t, fields[1])	
+	end
+	return t
+end
 
-macadamias = {
-"Zam"
-}
+macadamias = loadCSV("storage/mi.csv")
+admins = loadCSV("storage/admins.csv")
+channelTable = {}
+usersAlpha = {}
+players = {}
 
-function isMac(s)
-	for _,v in ipairs(admins) do
-		if v:lower() == s:getName():lower() and s:getID() ~= 0 then --0 means unregistered
+function isMac(s)	--s will be a name only, not a user object
+	for _,v in ipairs(macadamias) do
+		if v:lower() == s:lower() and s:getID() ~= 0 then --0 means unregistered
 			return true
 		end
 	end
 end
 
-usersAlpha = {}
-
 local client, err = assert(mumble.connect("voice.nut.city", 42069, "lm.pem", "lm.key"))
+if err ~= nil then
+	print(err)
+end
 client:auth("TESTBOT")
 
---[[local rdc = redis.connect('127.0.0.1', 6379)
-local redischannels = {'mumble'}]]--
+client:hook("OnServerReject", function(event)
+	print(reason)
+end)
+
+function getTime() --the library has mumble.gettime() but that only returns ms
+	local _time = os.date('*t')
+	_time = ("%02d:%02d:%02d"):format(_time.hour, _time.min, _time.sec)
+	return " @ " .. _time --automatically adds the @ symbol for ease of use
+end
 
 function find(p, c)		--parent, child | The library technically has a way to do this within it but I don't understand it :D
 	for _,v in pairs(client:getChannels()) do
@@ -86,19 +94,23 @@ function getlen(c)
 end
 
 function roll(t)
-	print("Trying to get a new medic pick")
+	print("Trying to get a new medic pick",getTime())
 	local i = 1
 	local userTesting
 	local c1, c2, c3 = channelTable.room1, channelTable.room2, channelTable.room3
 	if c1.red.length + c1.blu.length >= 2 then
-		if c2.red.length + c2.blu.length >= 2 then
-			if c3.red.length + c3.blu.length >= 2 then 					addup:message("You can't roll, ther are already medics.")			print("Someone tried to roll but was denied due to sufficient players.") 
-			end
-		end
+	if c2.red.length + c2.blu.length >= 2 then
+	if c3.red.length + c3.blu.length >= 2 then 
+	addup:message("You can't roll, there are already medics.")			
+	print("Someone tried to roll but was denied due to sufficient players.",getTime()) 
+		return
+	end
+	end
 	end
 	while i <= getlen(addup) do
+		print("Beginning i Loop")
 		if i > getlen(addup) then
-			print("Run out of people to test.")
+			print("Run out of people to test.",getTime())
 			addup:message("Everyone here has played Medic.")
 			return
 		else
@@ -107,12 +119,12 @@ function roll(t)
 				print(userTesting .. " has immunity, continuing...")
 				i = i + 1
 			elseif players[userTesting].medicImmunity == false then
-				print(userTesting .. " doesn't have immunity, breaking loop.")
+				print(userTesting .. " doesn't have immunity, breaking loop.",getTime())
 				break
 			end
 		end
 	end
-	print("Selecting medic: " .. userTesting)
+	print("Selecting medic: " .. userTesting,getTime())
 	addup:message("Medic: " .. userTesting .. " (" .. t[i] .. ")")
 	local user = players[userTesting]
 	local red, blu
@@ -136,18 +148,17 @@ function roll(t)
 		user.object:move(blu.object)
 		blu.length = blu.length + 1
 	else
-		print("Error in roll-move")
+		print("Error in roll-move",getTime())
 		return
 	end
-	print("Moved " .. user.object:getName())
+	print("Moved " .. user.object:getName(),getTime())
 	user.dontUpdate = true
 	user.medicImmunity = true
 	user.captain = true
 end
 
 client:hook("OnServerSync", function(event)	--this is where the initialization happens. The bot can do nothing in mumble before this.
-	print("Syncd as", event.user:getName())
-	print(client:isSynced())
+	print("Syncd as", event.user:getName(), client:isSynced(), getTime())
 	joe = event.user
 	root = joe:getChannel():getParent():getParent()
 	spacebase = find("Inhouse Pugs (Nut City)", "Poopy Joes Space Base")
@@ -156,7 +167,6 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	joe:move(spacebase)
 	players = {}
 	for _,v in pairs(client:getUsers()) do
-		print(v:getName():lower())
 		local u = v:getName():lower()
 		players[u] = {
 			object = v,
@@ -165,7 +175,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 			dontUpdate = false,
 			channelB = v:getChannel(),
 		}
-		if isMac(v) then
+		if isMac(u) then
 			players[u].medicImmunity = true
 		else
 			players[u].medicImmunity = false
@@ -203,11 +213,10 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 		    }
 		}
 	}
-	--lenprintout()
 end)
 
 function lenprintout()
-	print("-------------------------")
+	print("-------------------------",getTime())
 	print("LENGTH OF RED1: " .. tostring(channelTable.room1.red.length))
 	print("LENGTH OF BLU1: " .. tostring(channelTable.room1.blu.length))
 	print("LENGTH OF RED2: " .. tostring(channelTable.room2.red.length))
@@ -224,9 +233,9 @@ client:hook("OnMessage", function(event)
 	msg = msg:gsub("<.+>", ""):gsub("\n*", ""):gsub("%s$", "")
 	local sender = event.actor
 	local sentchannel = event.actor:getChannel()
-	print("MSG:", sender:getName(), msg)
+	print("MSG:", sender:getName(), msg, getTime())
 	if string.find(msg, "!v ", 1) == 1 then
-		if sentchannel == addup or sentchannel == fatkids then
+		if sentchannel == addup or sentchannel == fatkids or sentchannel == connect then
 			local team = msg:sub(4,6):lower()
 			local server = tonumber(msg:sub(-1))
 			if server == 1 then
@@ -261,14 +270,21 @@ client:hook("OnMessage", function(event)
 				p.volunteered = true
 				p.captain = true
 			else
-				print("Nut City Error code 102")
+				print("Nut City Error code 102", getTime())
 			end
 		else
-			print("Nut City Error code 103")
+			print("Nut City Error code 103", getTime())
 		end
+	end
+	if msg == "!rn" then
+		sentchannel:message(string.reverse(sender:getName()))
 	end
 	if isAdmin(sender) then
 		if string.find(msg, "!roll", 1) == 1 then
+			for _,u in pairs(client:getUsers()) do
+				u.captain = false
+				u.volunteered = false
+			end
 			generateUsersAlpha()
 			local toRoll
 			if #msg < 7 then
@@ -284,49 +300,41 @@ client:hook("OnMessage", function(event)
 		if string.find(msg, "!dc ", 1) == 1 then
 			local cnl = tonumber(msg:sub(5))
 			local server
-			if cnl == 1 then
-				server = channelTable.room1
-			elseif cnl == 2 then
-				server = channelTable.room2
-			elseif cnl == 3 then
-				server = channelTable.room3
+			if cnl <= 5 and cnl >= 1 then
+				server = find("Add Up", "Pug Server "..tostring(cnl))
+			else
+				print("Invalid channel to dump:", cnl)
 			end
 			sentchannel:message("Attempting to dump channels...")
-			print("Trying to dump channel " .. msg:sub(5))
-			local red, blu = server.red.object, server.blu.object
-			for _,u in pairs(red:getUsers()) do
-				players[u:getName():lower()].captain = false
-				players[u:getName():lower()].volunteered = false
-				u:move(addup)
+			print("Trying to dump channel " .. msg:sub(5),getTime())
+			for _,room in pairs(server:getChildren()) do
+				for _,user in pairs(room:getUsers()) do
+					user:move(addup)
+				end
 			end
-			for _,u in pairs(blu:getUsers()) do
-				players[u:getName():lower()].captain = false
-				players[u:getName():lower()].volunteered = false
-				u:move(addup)
-			end
-			addup:message("Channel " .. cnl .. " dumped by " .. sender:getName())
+			addup:message("Channel "..cnl.." dumped by ".. sender:getName())
 		end
 		if string.find(msg, "!strike", 1) == 1 then
 			local player = msg:sub(9)
 			players[player].medicImmunity = false
-			print(sender:getName() .. " strikes " .. player)
-			addup:message(sender:getName() .. " removes " .. player "'s medic immunity.")
+			print(sender:getName() .. " removes Medic Immunity from " .. player, getTime())
+			addup:message(sender:getName() .. " removes " .. player .. "'s medic immunity.")
 		end
 		if string.find(msg, "!ami", 1) == 1 then
 			local player = msg:sub(6)
 			players[player].medicImmunity = true
-			print(sender:getName() .. " gives medic immunity to " .. player)
-			addup:message(sender:getName() .. " gives " .. player " medic immunity.")
+			print(sender:getName() .. " gives medic immunity to " .. player,getTime())
+			addup:message(sender:getName() .. " gives " .. player .. " medic immunity.")
 		end
 		if string.find(msg, "!clearmh", 1) == 1 then
 			for k,v in pairs(players) do
-				if not isMac(v.object) then
+				if not isMac(k) then
 					v.medicImmunity = false
 					v.captain = false
 					v.volunteered = false
 				end
 			end
-			print(sender:getName() .. " cleared medic history.")
+			print(sender:getName() .. " cleared medic history.",getTime())
 		end
 		if string.find(msg, "!pmh", 1) == 1 then
 			for k,v in pairs(players) do
@@ -382,6 +390,7 @@ client:hook("OnMessage", function(event)
 			local red, blu = server.red.object, server.blu.object
 			addup:link(blu, red)
 			blu:link(red)
+			print("Server " .. tostring(server) .. " subchannels linked", getTime())
 		end
 		if string.find(msg, "!unlink", 1) == 1 then
 			local server = tonumber(msg:sub(9,9))
@@ -395,13 +404,36 @@ client:hook("OnMessage", function(event)
 			local red, blu = server.red.object, server.blu.object
 			addup:unlink(blu, red)
 			blu:unlink(red)
+			print("Server " .. tostring(server) .. " subchannels unlinked", getTime())
 		end
+		if string.find(msg, "!reload", 1) == 1 then
+			local f = msg:sub(9)
+			if f == "admins" then
+				admins = loadCSV("storage/admins.csv")
+				print("Reloaded admins table")
+			elseif f == "mi" then
+				macadamias = loadCSV("storage/mi.csv")
+				print("Reloaded macadamias table")
+			end
+		end
+		if string.find(msg, "!append", 1) == 1 then
+			local kwords = {}		--this would actually be a pretty nice system for making commands tbh
+			for word in msg:gmatch("%w+") do
+				table.insert(kwords, word)
+			end
+			print(table.insert(_G[kwords[2]], kwords[3]))
+			local file = io.open('storage/'..kwords[2]..'.csv', 'a')
+			file:write(kwords[3])
+			file:close()
+			print(sender:getName() .. " committed " .. kwords[3] .. " to table " .. kwords[2], getTime())
+		end
+		
 	end
 end)
 
 client:hook("OnUserConnected", function(event)
 	local name = event.user:getName():lower()
-	print("CONNECT FROM " .. name)
+	print("CONNECT:", event.user:getName(), getTime())
 	if players[name] == nil then
 		players[name] = {
 			object = event.user,
@@ -410,7 +442,7 @@ client:hook("OnUserConnected", function(event)
 			channelB = event.user:getChannel(),
 			dontUpdate = false
 		}
-		if isMac(event.user) then
+		if isMac(event.user:getName()) then
 			players[name].medicImmunity = true
 		else
 			players[name].medicImmunity = false
@@ -425,6 +457,7 @@ end)
 
 client:hook("OnUserRemove", function(event)
 	local u = players[event.user:getName():lower()]
+	print("DISCONNECT:",event.user:getName(),getTime())
 	for _,server in pairs(channelTable) do
 		for n,room in pairs(server) do
 			if room.object == u.channelB then
@@ -433,22 +466,24 @@ client:hook("OnUserRemove", function(event)
 			end
 		end
 	end
-	--lenprintout()
 end)
 
 client:hook("OnUserChannel", function(event)	
 	--When a user changes channels.
 	--event is a table with keys: "user", "actor", "from", "to"
+	if players[event.user:getName():lower()] == nil then
+		return --user just connected
+	end
 	local u = players[event.user:getName():lower()]
 	if u.dontUpdate == false then
 		for _,server in pairs(channelTable) do
 			for n,room in pairs(server) do
 				if event.from == room.object then
 					room.length = room.length - 1
-					print("LEFT " .. event.from:getName())
+					--print("LEFT " .. event.from:getName())
 				elseif event.to == room.object then
 					room.length = room.length + 1
-					print("TO " .. event.to:getName())
+					--print("TO " .. event.to:getName())
 				end
 			end
 		end
@@ -456,26 +491,17 @@ client:hook("OnUserChannel", function(event)
 		u.dontUpdate = false
 	end
 	u.channelB = event.to
-	--lenprintout()
 end)
 
---[[co = coroutine.create(function()
-	for msg, abort in rdc:pubsub({subscribe = redischannels}) do
-		if msg.kind == 'subscribe' then
-			print('subscribed to channel',msg.channel)
-		elseif msg.kind == 'message' then
-			if msg.channel == 'mumble' then
-				print("Message rec", msg.payload)
-			end
+--[[for msg, abort in rdc:pubsub({subscribe = redischannels}) do
+	if msg.kind == 'subscribe' then
+		print('subscribed to channel',msg.channel)
+	elseif msg.kind == 'message' then
+		if msg.channel == 'mumble' then
+			print("Message rec", msg.payload)
 		end
-		coroutine.yield()
-	end	
-end)]]--
-
---[[update = coroutine.create(function()
-	client:update()
-	coroutine.yield()
-end)]]--
+	end
+end]]--	
 
 client:hook("OnTick", function()
 
@@ -485,8 +511,17 @@ client:hook("OnChannelState", function(channel)
 
 end)
 
+client:hook("OnError", function(error_)
+	if client:isSynced() then
+		print(error_)
+	else
+		print('Err, not synced')
+	end
+end)
 
 while client:isConnected() do
 	client:update()
 	mumble.sleep(0.01)
 end
+
+return main
