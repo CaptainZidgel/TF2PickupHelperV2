@@ -1,4 +1,3 @@
-local main = {}
 local mumble = require "mumble"
 local inspect = require "inspect"
 local socket = require "socket"
@@ -523,5 +522,3 @@ while client:isConnected() do
 	client:update()
 	mumble.sleep(0.01)
 end
-
-return main
