@@ -9,7 +9,8 @@ Keeps track of who has and hasn't played medic.  \
 `!roll` new medics and never get a duplicate.  \
 Automatically moves medics to their rooms.  \
 `!unlink/!link` game rooms without needing to enter them individually and right click -> unlink all.  \
-`!mute` all players who aren't admins or captains, or `!mute all` players who aren't admins.
+`!mute` all players who aren't admins or captains, or `!mute all` players who aren't admins.  \
+`!dc 1` move all players in a specified channel to add up.
 
 Installing
 ==========
@@ -17,7 +18,7 @@ The require("mumble") module can only be built and used on Linux.\
 `git clone https://github.com/bkacjios/lua-mumble.git`  \
 Get the dependencies for the module\
 `sudo apt-get install libluajit-5.1-dev protobuf-c libprotobuf-c-dev libssl-dev libopus-dev libvorbis-dev `\
-CD into lua-mumble and `make`.  \
+CD into lua-mumble and `make` then `make install`. I'm not too familiar with making so this might be wrong. Just make sure you `make install` if you intend to use the module outside of the folder you made it in.  \
 Place the main.lua into lua-mumble.  \
 Run the command `luajit main.lua`  \
 The bot will run.
