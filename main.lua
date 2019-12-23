@@ -1,10 +1,6 @@
 local mumble = require "mumble"
 local inspect = require "inspect"
-local socket = require "socket"
-local redis = require "redis"
 local csv = require "csv"
-
-print(socket._VERSION)
 
 function getTime() --the library has mumble.gettime() but that only returns ms
 	local _time = os.date('*t')
@@ -40,7 +36,7 @@ players = {}
 
 function isMac(s)	--s will be a name only, not a user object
 	for _,v in ipairs(macadamias) do
-		if v:lower() == s:lower() and s:getID() ~= 0 then --0 means unregistered
+		if v:lower() == s:lower() and players[s].object:getID() ~= 0 then --0 means unregistered
 			return true
 		end
 	end
@@ -50,10 +46,10 @@ local client, err = assert(mumble.connect("voice.nut.city", 42069, "lm.pem", "lm
 if err ~= nil then
 	log(err, true)
 end
-client:auth("TESTBOT")
+client:auth("PoopyJoe") --If the bot is registered on a server, it will always use the name it's registered under, however you'll still need to specify a string in this method.
 
 client:hook("OnServerReject", function(event)
-	log(reason)
+	log("ServerReject: "..reason)
 end)
 
 function find(p, c)		--parent, child | The library technically has a way to do this within it but I don't understand it :D
@@ -118,14 +114,13 @@ function roll(t)
 	end
 	end
 	while i <= getlen(addup) do
-		log("Beginning i Loop")
 		if i > getlen(addup) then
 			log("Run out of people to test.")
 			addup:message("Everyone here has played Medic.")
 			return
 		else
 			userTesting = usersAlpha[t[i]]
-			if players[userTesting].medicImmunity == true then
+			if players[userTesting].medicImmunity == true or players[userTesting].object:getID() == 214 then
 				log(userTesting .. " has immunity, continuing...")
 				i = i + 1
 			elseif players[userTesting].medicImmunity == false then
@@ -168,8 +163,11 @@ function roll(t)
 end
 
 client:hook("OnServerSync", function(event)	--this is where the initialization happens. The bot can do nothing in mumble before this.
-	log("Syncd as ".. event.user:getName() .. " " .. tostring(client:isSynced()))
-	log("===========================================\nNEW CONNECTION",false)
+	local _date = os.date('*t')
+	_date = _date.month.."/".._date.day
+	log("===========================================", false)
+	log("Newly connected, Syncd as ".. event.user:getName() .. " " .. tostring(client:isSynced()).." @ ".._date)
+	log("===========================================",false)
 	joe = event.user
 	root = joe:getChannel():getParent():getParent()
 	spacebase = find("Inhouse Pugs (Nut City)", "Poopy Joes Space Base")
@@ -244,7 +242,12 @@ client:hook("OnMessage", function(event)
 	msg = msg:gsub("<.+>", ""):gsub("\n*", ""):gsub("%s$", "")
 	local sender = event.actor
 	local sentchannel = event.actor:getChannel()
-	log("MSG FROM " .. sender:getName() .. " IN CHANNEL " .. sentchannel:getName())
+	log("MSG FROM " .. sender:getName() .. " IN CHANNEL " .. sentchannel:getName() .. ": " .. msg)
+	if string.find(msg, "!help", 1) == 1 then
+		sentchannel:message(
+		"All Users:<br />!help - this menu.<br />!v red - volunteers for red team.<br />!pmh - prints medic history.<br /><br />Admins:<br />!roll - Rolls for 2 medics. Specify '!roll 1' to roll just one.<br />'!fv user1 user2' - Swaps a Medic user1 out for a volunteer, user2.<br />'!dc 1' - Dump subchannels in server 1.<br />!mute/!unmute - mutes everyone but admins and captains, or unmutes them.<br />!ami - Adds medic immunity to a specified user.<br />!strike - removes medic immunity from a specified user.<br />"
+		)
+	end
 	if string.find(msg, "!v ", 1) == 1 then
 		if sentchannel == addup or sentchannel == fatkids or sentchannel == connect then
 			local team = msg:sub(4,6):lower()
@@ -401,7 +404,7 @@ client:hook("OnMessage", function(event)
 			local red, blu = server.red.object, server.blu.object
 			addup:link(blu, red)
 			blu:link(red)
-			log("Server " .. inspect(server) .. " subchannels linked")
+			log("Server " .. msg:sub(7,7) .. " subchannels linked")
 		end
 		if string.find(msg, "!unlink", 1) == 1 then
 			local server = tonumber(msg:sub(9,9))
@@ -415,7 +418,7 @@ client:hook("OnMessage", function(event)
 			local red, blu = server.red.object, server.blu.object
 			addup:unlink(blu, red)
 			blu:unlink(red)
-			log("Server " .. inspect(server) .. " subchannels unlinked")
+			log("Server " .. msg:sub(9,9) .. " subchannels unlinked")
 		end
 		if string.find(msg, "!reload", 1) == 1 then
 			local f = msg:sub(9)
@@ -438,7 +441,43 @@ client:hook("OnMessage", function(event)
 			file:close()
 			log(sender:getName() .. " committed " .. kwords[3] .. " to table " .. kwords[2])
 		end
-		
+		if string.find(msg, "!getid", 1) == 1 then
+			local player = msg:sub(8)
+			print(tostring(players[player].object:getID()))
+		end
+		if string.find(msg, "!printall", 1) == 1 then
+			for k,v in pairs(players) do
+				print(k, inspect(v))
+				print("*****************************")
+			end
+		end
+		if string.find(msg, "!copy", 1) == 1 then
+			local kwords = {}
+			for word in msg:gmatch("%w+") do
+				table.insert(kwords, word)
+			end
+			players[kwords[3]] = players[kwords[2]]
+			--"!copy GamerA GamerB" 
+			--GamerB takes on the data (med immunity, etc) of GamerA
+			log("data copied: " ..kwords[2].."->"..kwords[3])
+		end
+		if string.find(msg, "!fv", 1) == 1 then
+			local kwords = {}
+			for word in msg:gmatch("%w+") do
+				table.insert(kwords, word)
+			end
+			local pOut, pIn = players[kwords[2]], players[kwords[3]]
+			local nc = pOut.object:getChannel()
+			if pOut.volunteered then
+				log(kwords[2].." can't be volunteered for, they're already a volunteer.")
+				return
+			end
+			pIn.object:move(nc)
+			pIn.medicImmunity, pIn.volunteered, pIn.captain = true, true, true
+			pOut.object:move(addup)
+			pOut.medicImmunity, pOut.captain = false, false
+			log("Force-volunteer, swapped med "..kwords[2].." for civilian "..kwords[3])
+		end
 	end
 end)
 
@@ -506,16 +545,6 @@ client:hook("OnUserChannel", function(event)
 	end
 	u.channelB = event.to
 end)
-
---[[for msg, abort in rdc:pubsub({subscribe = redischannels}) do
-	if msg.kind == 'subscribe' then
-		print('subscribed to channel',msg.channel)
-	elseif msg.kind == 'message' then
-		if msg.channel == 'mumble' then
-			print("Message rec", msg.payload)
-		end
-	end
-end]]--	
 
 client:hook("OnTick", function()
 

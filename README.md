@@ -19,7 +19,6 @@ The require("mumble") module can only be built and used on Linux.\
 Get the dependencies for the module\
 `sudo apt-get install libluajit-5.1-dev protobuf-c libprotobuf-c-dev libssl-dev libopus-dev libvorbis-dev `\
 CD into lua-mumble and `make` then `make install`. I'm not too familiar with making so this might be wrong. Just make sure you `make install` if you intend to use the module outside of the folder you made it in.  \
-Place the main.lua into lua-mumble.  \
 Run the command `luajit main.lua`  \
 The bot will run.
 
