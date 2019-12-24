@@ -36,7 +36,7 @@ players = {}
 
 function isMac(s)	--s will be a name only, not a user object
 	for _,v in ipairs(macadamias) do
-		if v:lower() == s:lower() and players[s].object:getID() ~= 0 then --0 means unregistered
+		if v:lower() == s:lower() and players[s:lower()].object:getID() ~= 0 then --0 means unregistered
 			return true
 		end
 	end
@@ -295,7 +295,7 @@ client:hook("OnMessage", function(event)
 	end
 	if isAdmin(sender) then
 		if string.find(msg, "!roll", 1) == 1 then
-			for _,u in pairs(client:getUsers()) do
+			for _,u in pairs(players) do
 				u.captain = false
 				u.volunteered = false
 			end
@@ -327,6 +327,9 @@ client:hook("OnMessage", function(event)
 				end
 			end
 			addup:message("Channel "..cnl.." dumped by ".. sender:getName())
+			for k,v in pairs(server:getChildren()) do
+				v:link(addup)
+			end
 		end
 		if string.find(msg, "!strike", 1) == 1 then
 			local player = msg:sub(9)
