@@ -33,6 +33,7 @@ admins = loadCSV("admins.csv")
 channelTable = {}
 usersAlpha = {}
 players = {}
+warnings = loadCSV("warn.csv")
 
 function isMac(s)	--s will be a name only, not a user object
 	for _,v in ipairs(macadamias) do
@@ -177,12 +178,20 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	players = {}
 	for _,v in pairs(client:getUsers()) do
 		local u = v:getName():lower()
+		local warn
+		for _,w in pairs(warnings) do
+			if w[1] == u then
+				warn = tonumber(w[2])
+				break
+			end
+		end
 		players[u] = {
 			object = v,
 			volunteered = false,
 			captain = false,
 			dontUpdate = false,
 			channelB = v:getChannel(),
+			warnings = warn
 		}
 		if isMac(u) then
 			players[u].medicImmunity = true
@@ -222,6 +231,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 		    }
 		}
 	}
+	draftlock = false
 end)
 
 function lenprintout()
@@ -245,11 +255,11 @@ client:hook("OnMessage", function(event)
 	log("MSG FROM " .. sender:getName() .. " IN CHANNEL " .. sentchannel:getName() .. ": " .. msg)
 	if string.find(msg, "!help", 1) == 1 then
 		sentchannel:message(
-		"All Users:<br />!help - this menu.<br />!v red - volunteers for red team.<br />!pmh - prints medic history.<br /><br />Admins:<br />!roll - Rolls for 2 medics. Specify '!roll 1' to roll just one.<br />'!fv user1 user2' - Swaps a Medic user1 out for a volunteer, user2.<br />'!dc 1' - Dump subchannels in server 1.<br />!mute/!unmute - mutes everyone but admins and captains, or unmutes them.<br />!ami - Adds medic immunity to a specified user.<br />!strike - removes medic immunity from a specified user.<br />"
+		"All Users:<br />!help - this menu.<br />!v red - volunteers for red team.<br />!pmh - prints medic history.<br />!rn - Your name backwords<br />!flip - Flip a coin. Everyone in your channel will see the result.<br />!rng x y - A random number between x and y.<br /><br />Admins:<br />!roll - Rolls for 2 medics. Specify '!roll 1' to roll just one.<br />'!fv user1 user2' - Swaps a Medic user1 out for a volunteer, user2.<br />'!dc 1' - Dump subchannels in server 1.<br />!mute/!unmute - mutes everyone but admins and captains, or unmutes them.<br />!ami - Adds medic immunity to a specified user.<br />!strike - removes medic immunity from a specified user.<br />'!fv userout userin' - Replace medic userout with the NEW medic userin.<br />!draftlock - Toggle whether or not people can move to addup."
 		)
 	end
 	if string.find(msg, "!v ", 1) == 1 then
-		if sentchannel == addup or sentchannel == fatkids or sentchannel == connect then
+		if sentchannel == addup or sentchannel == fatkids or sentchannel == connectlobby then
 			local team = msg:sub(4,6):lower()
 			local server = tonumber(msg:sub(-1))
 			if server == 1 then
@@ -292,6 +302,24 @@ client:hook("OnMessage", function(event)
 	end
 	if msg == "!rn" then
 		sentchannel:message(string.reverse(sender:getName()))
+	end
+	if msg == "!flip" then
+		math.randomseed(os.time())
+		local r = math.random(1, 2)
+		if r == 1 then
+			sentchannel:message("Heads")
+		else
+			sentchannel:message("Tails")
+		end
+		sentchannel:message("(Coin flipped by "..sender:getName()..")")
+	end
+	if string.find(msg, "!rng", 1) == 1 then
+		local kwords = {}
+		for word in msg:gmatch("%w+") do
+			table.insert(kwords, word)
+		end
+		math.randomseed(os.time())
+		sender:message(tostring(math.random(tonumber(kwords[2]), tonumber(kwords[3]))))
 	end
 	if isAdmin(sender) then
 		if string.find(msg, "!roll", 1) == 1 then
@@ -360,7 +388,7 @@ client:hook("OnMessage", function(event)
 				end
 			end
 		end
-		if string.find(msg, "mute") then --this part is written very poorly :D
+		if string.find(msg, "mute") then --this part is written very poorly :D ### REWRITE REWRITE REWRITE
 			local b
 			local ec = true
 			if string.find(msg, "!mute", 1) == 1 then
@@ -481,19 +509,45 @@ client:hook("OnMessage", function(event)
 			pOut.medicImmunity, pOut.captain = false, false
 			log("Force-volunteer, swapped med "..kwords[2].." for civilian "..kwords[3])
 		end
+		if string.find(msg, "!warn", 1) == 1 then
+			local player = msg:sub(7)
+			if players[player].warnings then
+				players[player].warnings = players[player].warnings + 1
+			else
+				players[player].warnings = 1
+			end
+			players[player].object:message("You've been warned.")
+			log(sender:getName() .. " warns " .. player .. " who now has " .. players[player].warnings .. " warns.")
+		end
+		if string.find(msg, "!getwarns", 1) == 1 then
+			local player = msg:sub(11)
+			sender:message(player .." was warned ")
+		end
+		if string.find(msg, "!draftlock", 1) == 1 then
+			draftlock = not draftlock
+			if draftlock then addup:message(sender:getName() .. " locked the draft!") end
+			log(sender:getName() .. " toggled draft lock to " .. tostring(draftlock))
+		end
 	end
 end)
 
 client:hook("OnUserConnected", function(event)
 	local name = event.user:getName():lower()
 	log("USER CONNECT: "..event.user:getName())
+	for _,w in pairs(warnings) do
+		if w[1] == u then
+			warn = tonumber(w[2])
+			break
+		end
+	end
 	if players[name] == nil then
 		players[name] = {
 			object = event.user,
 			volunteered = false,
 			captain = false,
 			channelB = event.user:getChannel(),
-			dontUpdate = false
+			dontUpdate = false,
+			warnings = warn
 		}
 		if isMac(event.user:getName()) then
 			players[name].medicImmunity = true
@@ -527,26 +581,32 @@ end)
 client:hook("OnUserChannel", function(event)	
 	--When a user changes channels.
 	--event is a table with keys: "user", "actor", "from", "to"
-	if players[event.user:getName():lower()] == nil then
-		return --user just connected
-	end
-	local u = players[event.user:getName():lower()]
-	if u.dontUpdate == false then
-		for _,server in pairs(channelTable) do
-			for n,room in pairs(server) do
-				if event.from == room.object then
-					room.length = room.length - 1
-					--print("LEFT " .. event.from:getName())
-				elseif event.to == room.object then
-					room.length = room.length + 1
-					--print("TO " .. event.to:getName())
+	if draftlock and event.to == addup and not isAdmin(event.actor) then
+--event.actor is the person who moved event.user (may be themselves!)
+			log(event.user:getName() .. " tried to addup, was locked out.")
+			event.user:move(connectlobby)
+			event.user:message("Sorry bucko! Picking has already started and you're late! If you believe you've been wrongly locked out, tell an admin. They'll move you.")
+			--we COULD use a user.key to save the data of whether a person was in addup to allow people to reconnect and still addup, but that would be a lot of work so I'm not going to, lol
+	else
+		if players[event.user:getName():lower()] == nil then
+			return --user just connected
+		end
+		local u = players[event.user:getName():lower()]
+		if u.dontUpdate == false then
+			for _,server in pairs(channelTable) do
+				for n,room in pairs(server) do
+					if event.from == room.object then
+						room.length = room.length - 1
+					elseif event.to == room.object then
+						room.length = room.length + 1
+					end
 				end
 			end
+		else
+			u.dontUpdate = false
 		end
-	else
-		u.dontUpdate = false
+		u.channelB = event.to
 	end
-	u.channelB = event.to
 end)
 
 client:hook("OnTick", function()
