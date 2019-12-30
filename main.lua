@@ -234,6 +234,13 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	draftlock = false
 end)
 
+function mumble.channel.messager(self, m) --channel, message
+	self:message(m)
+	for _,channels in pairs(self:getChildren()) do
+		channels:message(m)
+	end
+end
+
 function lenprintout()
 	print("-------------------------",getTime())
 	print("LENGTH OF RED1: " .. tostring(channelTable.room1.red.length))
@@ -298,6 +305,7 @@ client:hook("OnMessage", function(event)
 			end
 		else
 			log("Nut City Error code 103")
+			log(sentchannel:getName())
 		end
 	end
 	if msg == "!rn" then
@@ -323,6 +331,8 @@ client:hook("OnMessage", function(event)
 	end
 	if isAdmin(sender) then
 		if string.find(msg, "!roll", 1) == 1 then
+			draftlock = true
+			find("Nut City Limits", "Inhouse Pugs"):messager("Medics being rolled, draft is locked.")
 			for _,u in pairs(players) do
 				u.captain = false
 				u.volunteered = false
@@ -340,6 +350,7 @@ client:hook("OnMessage", function(event)
 			end
 		end
 		if string.find(msg, "!dc ", 1) == 1 then
+			draftlock = false
 			local cnl = tonumber(msg:sub(5))
 			local server
 			if cnl <= 5 and cnl >= 1 then
@@ -347,14 +358,14 @@ client:hook("OnMessage", function(event)
 			else
 				log("Invalid channel to dump: " .. cnl)
 			end
-			sentchannel:message("Attempting to dump channels...")
+			sentchannel:messager("Attempting to dump channels...")
 			log("Trying to dump channel " .. msg:sub(5))
 			for _,room in pairs(server:getChildren()) do
 				for _,user in pairs(room:getUsers()) do
 					user:move(addup)
 				end
 			end
-			addup:message("Channel "..cnl.." dumped by ".. sender:getName())
+			addup:messager("Channel "..cnl.." dumped by ".. sender:getName())
 			for k,v in pairs(server:getChildren()) do
 				v:link(addup)
 			end
@@ -363,13 +374,13 @@ client:hook("OnMessage", function(event)
 			local player = msg:sub(9)
 			players[player].medicImmunity = false
 			log(sender:getName() .. " removes Medic Immunity from " .. player)
-			addup:message(sender:getName() .. " removes " .. player .. "'s medic immunity.")
+			addup:messager(sender:getName() .. " removes " .. player .. "'s medic immunity.")
 		end
 		if string.find(msg, "!ami", 1) == 1 then
 			local player = msg:sub(6)
 			players[player].medicImmunity = true
 			log(sender:getName() .. " gives medic immunity to " .. player)
-			addup:message(sender:getName() .. " gives " .. player .. " medic immunity.")
+			addup:messager(sender:getName() .. " gives " .. player .. " medic immunity.")
 		end
 		if string.find(msg, "!clearmh", 1) == 1 then
 			for k,v in pairs(players) do
@@ -389,8 +400,8 @@ client:hook("OnMessage", function(event)
 			end
 		end
 		if string.find(msg, "mute") then --this part is written very poorly :D ### REWRITE REWRITE REWRITE
-			local b
-			local ec = true
+			local b			--the boolean to set mute to.
+			local ec = true		--whether or not to exclude captains from mutings.
 			if string.find(msg, "!mute", 1) == 1 then
 				b = true
 			elseif string.find(msg, "!unmute", 1) == 1 then
@@ -408,6 +419,9 @@ client:hook("OnMessage", function(event)
 				local p = players[user:getName():lower()]
 				if not isAdmin(user) then
 					if not ec or (ec and not p.captain) then
+						print(p .. " un/muted:	")
+						print("Condition 'ec': ", tostring(ec))
+						print("Condition 'p.captain': ", tostring(p.captain))
 						user:setMuted(b)
 					end
 				end
@@ -417,6 +431,9 @@ client:hook("OnMessage", function(event)
 					local p = players[user:getName():lower()]
 					if not isAdmin(user) then
 						if not ec or (ec and not p.captain) then
+							print(p .. " un/muted:	")
+							print("Condition 'ec': ", tostring(ec))
+							print("Condition 'p.captain': ", tostring(p.captain))
 							user:setMuted(b)
 						end
 					end
@@ -525,7 +542,11 @@ client:hook("OnMessage", function(event)
 		end
 		if string.find(msg, "!draftlock", 1) == 1 then
 			draftlock = not draftlock
-			if draftlock then addup:message(sender:getName() .. " locked the draft!") end
+			if draftlock then 
+				addup:messager(sender:getName() .. " locked the draft!") 
+			else
+				addup:messager(sender:getName() .. " unlocked the draft!")
+			end
 			log(sender:getName() .. " toggled draft lock to " .. tostring(draftlock))
 		end
 	end
@@ -534,6 +555,7 @@ end)
 client:hook("OnUserConnected", function(event)
 	local name = event.user:getName():lower()
 	log("USER CONNECT: "..event.user:getName())
+	local warn
 	for _,w in pairs(warnings) do
 		if w[1] == u then
 			warn = tonumber(w[2])
@@ -572,7 +594,7 @@ client:hook("OnUserRemove", function(event)
 		for n,room in pairs(server) do
 			if room.object == u.channelB then
 				room.length = room.length - 1
-				break
+				return
 			end
 		end
 	end
@@ -585,7 +607,7 @@ client:hook("OnUserChannel", function(event)
 --event.actor is the person who moved event.user (may be themselves!)
 			log(event.user:getName() .. " tried to addup, was locked out.")
 			event.user:move(connectlobby)
-			event.user:message("Sorry bucko! Picking has already started and you're late! If you believe you've been wrongly locked out, tell an admin. They'll move you.")
+			event.user:message("Sorry! Picking has already started and you're late! If you believe you've been wrongly locked out, tell an admin. They'll move you.")
 			--we COULD use a user.key to save the data of whether a person was in addup to allow people to reconnect and still addup, but that would be a lot of work so I'm not going to, lol
 	else
 		if players[event.user:getName():lower()] == nil then
