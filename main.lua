@@ -332,7 +332,8 @@ client:hook("OnMessage", function(event)
 	if isAdmin(sender) then
 		if string.find(msg, "!roll", 1) == 1 then
 			draftlock = true
-			find("Nut City Limits", "Inhouse Pugs"):messager("Medics being rolled, draft is locked.")
+			log("Draftlock switched to true after roll begins")
+			find("Nut City Limits", "Inhouse Pugs (Nut City)"):messager("Medics being rolled, draft is locked.")
 			for _,u in pairs(players) do
 				u.captain = false
 				u.volunteered = false
@@ -351,6 +352,7 @@ client:hook("OnMessage", function(event)
 		end
 		if string.find(msg, "!dc ", 1) == 1 then
 			draftlock = false
+			log("Draftlock switched to false after channel dump")
 			local cnl = tonumber(msg:sub(5))
 			local server
 			if cnl <= 5 and cnl >= 1 then
@@ -549,6 +551,15 @@ client:hook("OnMessage", function(event)
 			end
 			log(sender:getName() .. " toggled draft lock to " .. tostring(draftlock))
 		end
+		if string.find(msg, "!sync", 1) == 1 then
+			for _,server in pairs(channelTable) do
+				for _,room in pairs(server) do
+					room.length = getlen(room.object)
+				end
+			end
+			log("Updated channel lengths on the fly.")
+			lenprintout()
+		end
 	end
 end)
 
@@ -585,13 +596,17 @@ client:hook("OnUserConnected", function(event)
 end)
 
 client:hook("OnUserRemove", function(event)
+	if event.user == nil then
+		log("Nut City Error 104: Nil user remove")
+		return --i dont know if this needs to be here but im somehow getting an error that event.user is nil?
+	end
 	local u = players[event.user:getName():lower()]
 	log("USER DISCO/REM: "..event.user:getName(), false)
 	if event.ban then
 	log(event.user:getName() .. " banned by "..event.actor:getName().." with reason "..event.reason)
 	end
 	for _,server in pairs(channelTable) do
-		for n,room in pairs(server) do
+		for _,room in pairs(server) do
 			if room.object == u.channelB then
 				room.length = room.length - 1
 				return
@@ -603,8 +618,8 @@ end)
 client:hook("OnUserChannel", function(event)	
 	--When a user changes channels.
 	--event is a table with keys: "user", "actor", "from", "to"
-	if draftlock and event.to == addup and not isAdmin(event.actor) then
---event.actor is the person who moved event.user (may be themselves!)
+	if draftlock and event.to == addup and event.from == connectlobby and not isAdmin(event.actor) then
+			--using if event.from == connectlobby will exclude people moving in from other channels, like game channels or general, but thats a rare use case
 			log(event.user:getName() .. " tried to addup, was locked out.")
 			event.user:move(connectlobby)
 			event.user:message("Sorry! Picking has already started and you're late! If you believe you've been wrongly locked out, tell an admin. They'll move you.")
