@@ -167,13 +167,15 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as ".. event.user:getName() .. " " .. tostring(client:isSynced()).." @ ".._date)
+	log("Newly connected, Syncd as "..event.user:getName().." "..tostring(client:isSynced()).." v2.0.2".." @ ".. _date)
 	log("===========================================",false)
 	joe = event.user
 	root = joe:getChannel():getParent():getParent()
 	spacebase = find("Inhouse Pugs (Nut City)", "Poopy Joes Space Base")
 	connectlobby = find("Inhouse Pugs (Nut City)", "Connection Lobby")
 	addup = find("Inhouse Pugs (Nut City)", "Add Up")
+	notplaying = find("Add Up", "Chill Room (Not Playing)")
+	pugroot = find("Nut City Limits", "Inhouse Pugs (Nut City)")
 	joe:move(spacebase)
 	players = {}
 	for _,v in pairs(client:getUsers()) do
@@ -232,6 +234,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 		}
 	}
 	draftlock = false
+	dle = true
 end)
 
 function mumble.channel.messager(self, m) --channel, message
@@ -291,7 +294,8 @@ client:hook("OnMessage", function(event)
 					team = server.blu.object
 				end
 				for _,user in pairs(team:getUsers()) do
-					if players[user:getName():lower()].volunteered then return end					players[user:getName():lower()].medicImmunity = false
+					if players[user:getName():lower()].volunteered then return end					
+					players[user:getName():lower()].medicImmunity = false
 					players[user:getName():lower()].captain = false
 					user:move(addup)
 				end
@@ -305,7 +309,7 @@ client:hook("OnMessage", function(event)
 			end
 		else
 			log("Nut City Error code 103")
-			log(sentchannel:getName())
+			log(sentchannel:getName().."*"..sentchannel:getParent():getName())
 		end
 	end
 	if msg == "!rn" then
@@ -332,7 +336,8 @@ client:hook("OnMessage", function(event)
 	if isAdmin(sender) then
 		if string.find(msg, "!roll", 1) == 1 then
 			draftlock = true
-			find("Nut City Limits", "Inhouse Pugs"):messager("Medics being rolled, draft is locked.")
+			log("Draftlock switched to true after roll begins")
+			pugroot:messager("Medics being rolled, draft is locked.")
 			for _,u in pairs(players) do
 				u.captain = false
 				u.volunteered = false
@@ -351,6 +356,7 @@ client:hook("OnMessage", function(event)
 		end
 		if string.find(msg, "!dc ", 1) == 1 then
 			draftlock = false
+			if dle then log("Draftlock switched to false after channel dump") end
 			local cnl = tonumber(msg:sub(5))
 			local server
 			if cnl <= 5 and cnl >= 1 then
@@ -419,7 +425,7 @@ client:hook("OnMessage", function(event)
 				local p = players[user:getName():lower()]
 				if not isAdmin(user) then
 					if not ec or (ec and not p.captain) then
-						print(p .. " un/muted:	")
+						print(sender:getName() .. " un/muted:	")
 						print("Condition 'ec': ", tostring(ec))
 						print("Condition 'p.captain': ", tostring(p.captain))
 						user:setMuted(b)
@@ -466,6 +472,8 @@ client:hook("OnMessage", function(event)
 			local red, blu = server.red.object, server.blu.object
 			addup:unlink(blu, red)
 			blu:unlink(red)
+			draftlock = false
+			log("Draftlock switched to false in accordance with unlink, DLE IS: "..tostring(dle))
 			log("Server " .. msg:sub(9,9) .. " subchannels unlinked")
 		end
 		if string.find(msg, "!reload", 1) == 1 then
@@ -510,6 +518,9 @@ client:hook("OnMessage", function(event)
 			log("data copied: " ..kwords[2].."->"..kwords[3])
 		end
 		if string.find(msg, "!fv", 1) == 1 then
+			--fv Gamer1 Gamer2
+			--Gamer1 is a med and Gamer2 is a civilian, but now they swap roles
+			--as if Gamer2 had used !v
 			local kwords = {}
 			for word in msg:gmatch("%w+") do
 				table.insert(kwords, word)
@@ -542,12 +553,47 @@ client:hook("OnMessage", function(event)
 		end
 		if string.find(msg, "!draftlock", 1) == 1 then
 			draftlock = not draftlock
-			if draftlock then 
+			if draftlock and dle then 
 				addup:messager(sender:getName() .. " locked the draft!") 
 			else
 				addup:messager(sender:getName() .. " unlocked the draft!")
 			end
 			log(sender:getName() .. " toggled draft lock to " .. tostring(draftlock))
+		end
+		if string.find(msg, "!sync", 1) == 1 then
+			for _,server in pairs(channelTable) do
+				for _,room in pairs(server) do
+					room.length = getlen(room.object)
+				end
+			end
+			log("Updated channel lengths on the fly.")
+			lenprintout()
+		end
+		if string.find(msg, "!toggle", 1) == 1 then
+			local kwords = {}
+			for word in msg:gmatch("%w+") do
+				table.insert(kwords, word)
+			end
+			if kwords[2] == "dl" then
+				dle = not dle
+				sender:message("The draftlock system is now..")
+				if dle then
+					sender:message("On.")
+					sender:message("Draftlocked?: "..tostring(draftlock))
+				else
+					sender:message("Off.")
+				end
+				log("Draftlock eligibility toggled to "..tostring(dle))
+			end
+		end
+		if string.find(msg, "!cull", 1) == 1 then
+			pugroot:messager("Deafened users are being moved to chill room! Blame "..sender:getName())
+			for _,user in pairs(addup:getUsers()) do
+				if user:isDeaf() then
+					user:move(notplaying)
+				end
+			end
+			log("Deafened users culled")
 		end
 	end
 end)
@@ -585,13 +631,17 @@ client:hook("OnUserConnected", function(event)
 end)
 
 client:hook("OnUserRemove", function(event)
+	if event.user == nil then
+		log("Nut City Error 104: Nil user remove")
+		return --i dont know if this needs to be here but im somehow getting an error that event.user is nil?
+	end
 	local u = players[event.user:getName():lower()]
 	log("USER DISCO/REM: "..event.user:getName(), false)
 	if event.ban then
 	log(event.user:getName() .. " banned by "..event.actor:getName().." with reason "..event.reason)
 	end
 	for _,server in pairs(channelTable) do
-		for n,room in pairs(server) do
+		for _,room in pairs(server) do
 			if room.object == u.channelB then
 				room.length = room.length - 1
 				return
@@ -603,8 +653,8 @@ end)
 client:hook("OnUserChannel", function(event)	
 	--When a user changes channels.
 	--event is a table with keys: "user", "actor", "from", "to"
-	if draftlock and event.to == addup and not isAdmin(event.actor) then
---event.actor is the person who moved event.user (may be themselves!)
+	if dle and draftlock and event.to == addup and event.from == connectlobby and not isAdmin(event.actor) then
+			--using if event.from == connectlobby will exclude people moving in from other channels, like game channels or general, but thats a rare use case
 			log(event.user:getName() .. " tried to addup, was locked out.")
 			event.user:move(connectlobby)
 			event.user:message("Sorry! Picking has already started and you're late! If you believe you've been wrongly locked out, tell an admin. They'll move you.")
