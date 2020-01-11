@@ -193,7 +193,8 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 			captain = false,
 			dontUpdate = false,
 			channelB = v:getChannel(),
-			warnings = warn
+			warnings = warn,
+			selfbotdeaf = false
 		}
 		if isMac(u) then
 			players[u].medicImmunity = true
@@ -261,6 +262,7 @@ client:hook("OnMessage", function(event)
 	local msg = event.message:lower()
 	msg = msg:gsub("<.+>", ""):gsub("\n*", ""):gsub("%s$", "")
 	local sender = event.actor
+	local senderData = players[event.actor:getName():lower()]
 	local sentchannel = event.actor:getChannel()
 	log("MSG FROM " .. sender:getName() .. " IN CHANNEL " .. sentchannel:getName() .. ": " .. msg)
 	if string.find(msg, "!help", 1) == 1 then
@@ -318,12 +320,13 @@ client:hook("OnMessage", function(event)
 	if msg == "!flip" then
 		math.randomseed(os.time())
 		local r = math.random(1, 2)
+		local c
 		if r == 1 then
-			sentchannel:message("Heads")
+			c = ("Heads")
 		else
-			sentchannel:message("Tails")
+			c = ("Tails")
 		end
-		sentchannel:message("(Coin flipped by "..sender:getName()..")")
+		sentchannel:message(c.." (Coin flipped by "..sender:getName()..")")
 	end
 	if string.find(msg, "!rng", 1) == 1 then
 		local kwords = {}
@@ -332,6 +335,28 @@ client:hook("OnMessage", function(event)
 		end
 		math.randomseed(os.time())
 		sender:message(tostring(math.random(tonumber(kwords[2]), tonumber(kwords[3]))))
+	end
+	if string.find(msg, "!deaf", 1) == 1 then
+		if senderData.selfbotdeaf == false then
+			sender:setDeaf(true)
+			senderData.selfbotdeaf = true
+			log(sender:getName() .. " selfbot deafened.")
+		else
+			sender:message("Says here you're actually server deafened. Is this incorrect? Tell Zidgel.")
+			log("Nut City Error 105")
+			log("isDeaf", tostring(sender:isDeaf()))
+		end
+	end
+	if string.find(msg, "!undeaf", 1) == 1 then
+		if senderData.selfbotdeaf == true then
+			sender:setDeaf(false)
+			senderData.selfbotdeaf = false
+			log(sender:getName() .. " selfbot undeafened.")
+		else
+			sender:message("Says here you're not server deafened. Is this incorrect? Tell Zidgel.")
+			log("Nut City Error 106")
+			log("isDeaf", tostring(sender:isDeaf()))
+		end
 	end
 	if isAdmin(sender) then
 		if string.find(msg, "!roll", 1) == 1 then
@@ -574,7 +599,7 @@ client:hook("OnMessage", function(event)
 			for word in msg:gmatch("%w+") do
 				table.insert(kwords, word)
 			end
-			if kwords[2] == "dl" then
+			if kwords[2] == "dl" or kwords[2] == "dle" then
 				dle = not dle
 				sender:message("The draftlock system is now..")
 				if dle then
@@ -594,6 +619,18 @@ client:hook("OnMessage", function(event)
 				end
 			end
 			log("Deafened users culled")
+		end
+		if string.find(msg, "!mund", 1) == 1 then
+			local t = {}
+			for key,user in pairs(client:getUsers()) do
+				local n = players[user:getName():lower()]
+				if n.selfbotdeaf then
+					user:setDeaf(false)
+					n.selfbotdeaf = false
+					table.insert(t, user:getName())
+				end
+			end
+			log(sender:getName() .. " mass undeafened: " .. table.concat(t, " "))
 		end
 	end
 end)
@@ -615,7 +652,8 @@ client:hook("OnUserConnected", function(event)
 			captain = false,
 			channelB = event.user:getChannel(),
 			dontUpdate = false,
-			warnings = warn
+			warnings = warn,
+			selfbotdeaf = false
 		}
 		if isMac(event.user:getName()) then
 			players[name].medicImmunity = true
@@ -627,6 +665,7 @@ client:hook("OnUserConnected", function(event)
 		players[name].volunteered = false
 		players[name].captain = false
 		players[name].channelB = event.user:getChannel()
+		players[name].selfbotdeaf = false
 	end
 end)
 
