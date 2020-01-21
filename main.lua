@@ -614,7 +614,7 @@ client:hook("OnMessage", function(event)
 		if string.find(msg, "!cull", 1) == 1 then
 			pugroot:messager("Deafened users are being moved to chill room! Blame "..sender:getName())
 			for _,user in pairs(addup:getUsers()) do
-				if user:isDeaf() then
+				if user:isSelfDeaf() then
 					user:move(notplaying)
 				end
 			end
