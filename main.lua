@@ -705,17 +705,20 @@ client:hook("OnUserRemove", function(event)
 			end
 		end
 	end
-	if getlen(root, true) < 2 then
+	--[[if getlen(root, true) < 2 then				--the world (and the bot) isn't ready yet I guess :(
 		log("Automatically clearing medic history.")
 		clear_medics()
-	end
+	end]]--
 end)
 
 client:hook("OnUserChannel", function(event)	
 	--When a user changes channels.
 	--event is a table with keys: "user", "actor", "from", "to"
-	if dle and draftlock and event.to == addup or event.to == fatkids and event.from == connectlobby or event.from == notplaying and not isAdmin(event.actor) then
+	if dle and draftlock and (event.to == addup or event.to == fatkids) and (event.from == connectlobby or event.from == notplaying) and not isAdmin(event.actor) then
 			--using if event.from == connectlobby will exclude people moving in from other channels, like game channels or general, but thats a rare use case
+			if event.actor ~= event.user then
+			log(event.user:getName() .. " moved by " .. event.actor:getName() .. " from " .. event.from:getName() .. " to " event.to:getName())
+			end
 			log(event.user:getName() .. " tried to addup, was locked out.")
 			event.user:move(connectlobby)
 			event.user:message("Sorry! Picking has already started and you're late! If you believe you've been wrongly locked out, tell an admin. They'll move you.")
