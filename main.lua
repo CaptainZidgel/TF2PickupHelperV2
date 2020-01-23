@@ -717,7 +717,7 @@ client:hook("OnUserChannel", function(event)
 	if dle and draftlock and (event.to == addup or event.to == fatkids) and (event.from == connectlobby or event.from == notplaying) and not isAdmin(event.actor) then
 			--using if event.from == connectlobby will exclude people moving in from other channels, like game channels or general, but thats a rare use case
 			if event.actor ~= event.user then
-			log(event.user:getName() .. " moved by " .. event.actor:getName() .. " from " .. event.from:getName() .. " to " event.to:getName())
+			log(event.user:getName() .. " moved by " .. event.actor:getName() .. " from " .. event.from:getName() .. " to " .. event.to:getName())
 			end
 			log(event.user:getName() .. " tried to addup, was locked out.")
 			event.user:move(connectlobby)
