@@ -91,13 +91,29 @@ function randomTable(n)
 	return t
 end
 
-function getlen(c)
-	local c = c:getUsers()
+function getlen(c, recursive)
 	local i = 0
-	for k,v in pairs(c) do
+	for _,_ in pairs(c:getUsers()) do
 		i = i + 1
 	end
+	if recursive then
+		for _,channel in pairs(c:getChildren()) do
+			for _,_ in pairs(channel:getUsers()) do
+				i = i + 1
+			end
+		end
+	end
 	return i
+end
+
+function clear_medics()
+	for k,v in pairs(players) do
+		if not isMac(k) then
+			v.medicImmunity = false
+			v.captain = false
+			v.volunteered = false
+		end
+	end
 end
 
 function roll(t)
@@ -167,13 +183,15 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." "..tostring(client:isSynced()).." v2.0.2".." @ ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." "..tostring(client:isSynced()).." v2.1.0".." @ ".. _date)
 	log("===========================================",false)
+	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
 	root = joe:getChannel():getParent():getParent()
 	spacebase = find("Inhouse Pugs (Nut City)", "Poopy Joes Space Base")
 	connectlobby = find("Inhouse Pugs (Nut City)", "Connection Lobby")
 	addup = find("Inhouse Pugs (Nut City)", "Add Up")
+	fatkids = find("Add Up", "Fat Kids")
 	notplaying = find("Add Up", "Chill Room (Not Playing)")
 	pugroot = find("Nut City Limits", "Inhouse Pugs (Nut City)")
 	joe:move(spacebase)
@@ -414,13 +432,7 @@ client:hook("OnMessage", function(event)
 			addup:messager(sender:getName() .. " gives " .. player .. " medic immunity.")
 		end
 		if string.find(msg, "!clearmh", 1) == 1 then
-			for k,v in pairs(players) do
-				if not isMac(k) then
-					v.medicImmunity = false
-					v.captain = false
-					v.volunteered = false
-				end
-			end
+			clear_medics()
 			log(sender:getName() .. " cleared medic history.")
 		end
 		if string.find(msg, "!pmh", 1) == 1 then
@@ -435,8 +447,10 @@ client:hook("OnMessage", function(event)
 			local ec = true		--whether or not to exclude captains from mutings.
 			if string.find(msg, "!mute", 1) == 1 then
 				b = true
+				log(sender:getName().." muted all users.")
 			elseif string.find(msg, "!unmute", 1) == 1 then
 				b = false
+				log(sender:getName().." unmuted all users.")
 			else
 				return
 			end
@@ -446,13 +460,10 @@ client:hook("OnMessage", function(event)
 			else
 				ec = true
 			end
-			for k,user in pairs(addup:getUsers()) do
+			for _,user in pairs(addup:getUsers()) do
 				local p = players[user:getName():lower()]
 				if not isAdmin(user) then
 					if not ec or (ec and not p.captain) then
-						print(sender:getName() .. " un/muted:	")
-						print("Condition 'ec': ", tostring(ec))
-						print("Condition 'p.captain': ", tostring(p.captain))
 						user:setMuted(b)
 					end
 				end
@@ -462,9 +473,6 @@ client:hook("OnMessage", function(event)
 					local p = players[user:getName():lower()]
 					if not isAdmin(user) then
 						if not ec or (ec and not p.captain) then
-							print(p .. " un/muted:	")
-							print("Condition 'ec': ", tostring(ec))
-							print("Condition 'p.captain': ", tostring(p.captain))
 							user:setMuted(b)
 						end
 					end
@@ -609,7 +617,10 @@ client:hook("OnMessage", function(event)
 					sender:message("Off.")
 				end
 				log("Draftlock eligibility toggled to "..tostring(dle))
-			end
+			elseif kwords[2] == "motd" then
+				msgen = not msgen
+				log("MOTD toggled to "..tostring(msgen).." by "..sender:getName())
+			end		
 		end
 		if string.find(msg, "!cull", 1) == 1 then
 			pugroot:messager("Deafened users are being moved to chill room! Blame "..sender:getName())
@@ -631,6 +642,10 @@ client:hook("OnMessage", function(event)
 				end
 			end
 			log(sender:getName() .. " mass undeafened: " .. table.concat(t, " "))
+		end
+		if string.find(msg, "!setmotd", 1) == 1 then
+			motd = string.sub(msg, 10) 
+			log("MOTD set to "..motd.." by "..sender:getName())
 		end
 	end
 end)
@@ -667,6 +682,9 @@ client:hook("OnUserConnected", function(event)
 		players[name].channelB = event.user:getChannel()
 		players[name].selfbotdeaf = false
 	end
+	if msgen then
+		event.user:message(motd)
+	end
 end)
 
 client:hook("OnUserRemove", function(event)
@@ -687,12 +705,16 @@ client:hook("OnUserRemove", function(event)
 			end
 		end
 	end
+	if getlen(root) < 2 then
+		log("Automatically clearing medic history.")
+		clear_medics()
+	end
 end)
 
 client:hook("OnUserChannel", function(event)	
 	--When a user changes channels.
 	--event is a table with keys: "user", "actor", "from", "to"
-	if dle and draftlock and event.to == addup and event.from == connectlobby and not isAdmin(event.actor) then
+	if dle and draftlock and event.to == addup or event.to == fatkids and event.from == connectlobby or event.from == notplaying and not isAdmin(event.actor) then
 			--using if event.from == connectlobby will exclude people moving in from other channels, like game channels or general, but thats a rare use case
 			log(event.user:getName() .. " tried to addup, was locked out.")
 			event.user:move(connectlobby)
