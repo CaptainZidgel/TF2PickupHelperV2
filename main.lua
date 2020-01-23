@@ -705,7 +705,7 @@ client:hook("OnUserRemove", function(event)
 			end
 		end
 	end
-	if getlen(root) < 2 then
+	if getlen(root, true) < 2 then
 		log("Automatically clearing medic history.")
 		clear_medics()
 	end
