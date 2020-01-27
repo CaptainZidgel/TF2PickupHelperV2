@@ -23,7 +23,7 @@ function loadCSV(file)
 	local t = {}
 	local f = csv.open(file)
 	for fields in f:lines() do
-		table.insert(t, fields[1])	
+		table.insert(t, fields[1]) --the module should take care of this but it doesn't? I don't know, might as well rewrite this without needing an external module.	
 	end
 	return t
 end
@@ -43,20 +43,20 @@ function isMac(s)	--s will be a name only, not a user object
 	end
 end
 
-local client, err = assert(mumble.connect("voice.nut.city", 42069, "lm.pem", "lm.key"))
+local client, err = assert(mumble.connect("voice.nut.city", 42069, "adv.pem", "adv.key"))
 if err ~= nil then
 	log(err, true)
 end
-client:auth("PoopyJoe") --If the bot is registered on a server, it will always use the name it's registered under, however you'll still need to specify a string in this method.
+client:auth("2Poopy2Joe") --If the bot is registered on a server, it will always use the name it's registered under, however you'll still need to specify a string in this method.
 
 client:hook("OnServerReject", function(event)
-	log("ServerReject: "..reason)
+	log("ServerReject: "..event.reason)
 end)
 
 function find(p, c)		--parent, child | The library technically has a way to do this within it but I don't understand it :D
-	for _,v in pairs(client:getChannels()) do
-		if v:getName() == c and v:getParent():getName() == p then
-			return v
+	for _,channel in pairs(client:getChannels()) do
+		if channel:getName() == c and channel:getParent():getName() == p then
+			return channel
 		end
 	end
 end
@@ -67,6 +67,7 @@ function isAdmin(s)		--s will be the sender of a message, a user obj
 			return true
 		end
 	end
+	return false
 end
 
 function generateUsersAlpha()
@@ -104,16 +105,6 @@ function getlen(c, recursive)
 		end
 	end
 	return i
-end
-
-function clear_medics()
-	for k,v in pairs(players) do
-		if not isMac(k) then
-			v.medicImmunity = false
-			v.captain = false
-			v.volunteered = false
-		end
-	end
 end
 
 function roll(t)
@@ -183,7 +174,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." "..tostring(client:isSynced()).." v2.1.0".." @ ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." "..tostring(client:isSynced()).." v3.0.0".." @ ".. _date)
 	log("===========================================",false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -272,304 +263,220 @@ function lenprintout()
 	print("-------------------------")
 end
 
-client:hook("OnMessage", function(event)
-	--[[
-	channel:message("TEXT!") --send message to channel!
-	event is a table with keys: "actor", "message", "users", "channels"
-	]]--
-	local msg = event.message:lower()
-	msg = msg:gsub("<.+>", ""):gsub("\n*", ""):gsub("%s$", "")
-	local sender = event.actor
-	local senderData = players[event.actor:getName():lower()]
-	local sentchannel = event.actor:getChannel()
-	log("MSG FROM " .. sender:getName() .. " IN CHANNEL " .. sentchannel:getName() .. ": " .. msg)
-	if string.find(msg, "!help", 1) == 1 then
-		sentchannel:message(
-		"All Users:<br />!help - this menu.<br />!v red - volunteers for red team.<br />!pmh - prints medic history.<br />!rn - Your name backwords<br />!flip - Flip a coin. Everyone in your channel will see the result.<br />!rng x y - A random number between x and y.<br /><br />Admins:<br />!roll - Rolls for 2 medics. Specify '!roll 1' to roll just one.<br />'!fv user1 user2' - Swaps a Medic user1 out for a volunteer, user2.<br />'!dc 1' - Dump subchannels in server 1.<br />!mute/!unmute - mutes everyone but admins and captains, or unmutes them.<br />!ami - Adds medic immunity to a specified user.<br />!strike - removes medic immunity from a specified user.<br />'!fv userout userin' - Replace medic userout with the NEW medic userin.<br />!draftlock - Toggle whether or not people can move to addup."
-		)
+local cmd = {}	--you don't even need _G to do this haha whoops i'm a doofus
+--[[ctx =
+data = senderData,						-- the players[player] data thing :)
+admin = isAdmin,						-- bool :)
+sender_name = event.actor:getName(),	-- name :)
+sender = event.actor,					-- sender (mumble.user)
+channel = event.actor:getChannel()		-- sender's channel (mumble.channel) NOT the channel the message is sent to
+]]--
+function parse(s, context)
+	local kwords = {}
+	for word in string.gmatch(s, "%S+") do  --%s = space char, %S = not space char. + means multiple in a row. Use this over %w+, to retain underscores.
+		table.insert(kwords, word)			--insert each match into table kwords. kwords[1] will always be the cmd name, everything after that is a parameter.
 	end
-	if string.find(msg, "!v ", 1) == 1 then
-		if sentchannel == addup or sentchannel == fatkids or sentchannel == connectlobby then
-			local team = msg:sub(4,6):lower()
-			local server = tonumber(msg:sub(-1))
-			if server == 1 then
-				server = channelTable.room1
-			elseif server == 2 then
-				server = channelTable.room2
-			elseif server == 3 then
-				server = channelTable.room3
-			else
-				if channelTable.room1.red.length + channelTable.room1.blu.length < 3 then
-					server = channelTable.room1
-				elseif channelTable.room2.red.length + channelTable.room2.blu.length < 3 then
-					server = channelTable.room2
-				elseif channelTable.room3.red.length + channelTable.room3.blu.length < 3 then
-					server = channelTable.room3
-				end
-			end
-			if server.red.length + server.blu.length < 3 then
-				if team == "red" then
-					team = server.red.object
-				elseif team == "blu" then
-					team = server.blu.object
-				end
-				for _,user in pairs(team:getUsers()) do
-					if players[user:getName():lower()].volunteered then return end					
-					players[user:getName():lower()].medicImmunity = false
-					players[user:getName():lower()].captain = false
-					user:move(addup)
-				end
-				sender:move(team)
-				local p = players[sender:getName():lower()]
-				p.medicImmunity = true
-				p.volunteered = true
-				p.captain = true
-			else
-				log("Nut City Error code 102")
-			end
-		else
-			log("Nut City Error code 103")
-			log(sentchannel:getName().."*"..sentchannel:getParent():getName())
+	if cmd[kwords[1]] ~= nil then			--if function exists
+		cmd[kwords[1]](context, kwords)		--call function by name with context and arguments as well as user perms
+	end
+end
+--BOT COMMANDS--
+--						--
+	--	 Admins		--
+--						--
+function cmd.cull(ctx)
+	if ctx.admin == false then return end
+	pugroot:messager("Deafened users are being moved to chill room! Blame "..ctx.sender)
+	for _,user in pairs(addup:getUsers()) do
+		if user:isSelfDeaf() then
+			user:move(notplaying)
 		end
 	end
-	if msg == "!rn" then
-		sentchannel:message(string.reverse(sender:getName()))
+	log("Deafened users culled")
+end
+function cmd.roll(ctx, args)
+	if ctx.admin == false then log(ctx.sender_name..'denied roll perms') return end
+	draftlock = true
+	log("Draftlock switched to true after roll begins")
+	pugroot:messager("Medics being rolled, draft is locked.")
+	for _,u in pairs(players) do
+		u.captain = false
+		u.volunteered = false
 	end
-	if msg == "!flip" then
-		math.randomseed(os.time())
-		local r = math.random(1, 2)
-		local c
-		if r == 1 then
-			c = ("Heads")
-		else
-			c = ("Tails")
-		end
-		sentchannel:message(c.." (Coin flipped by "..sender:getName()..")")
+	generateUsersAlpha()
+	local toRoll
+	if #args < 2 then
+		toRoll = 2
+	else	
+		toRoll = tonumber(args[2])
 	end
-	if string.find(msg, "!rng", 1) == 1 then
-		local kwords = {}
-		for word in msg:gmatch("%w+") do
-			table.insert(kwords, word)
-		end
-		math.randomseed(os.time())
-		sender:message(tostring(math.random(tonumber(kwords[2]), tonumber(kwords[3]))))
+	while toRoll > 0 do
+		roll(randomTable(getlen(addup)))
+		toRoll = toRoll - 1
 	end
-	if string.find(msg, "!deaf", 1) == 1 then
-		if senderData.selfbotdeaf == false then
-			sender:setDeaf(true)
-			senderData.selfbotdeaf = true
-			log(sender:getName() .. " selfbot deafened.")
-		else
-			sender:message("Says here you're actually server deafened. Is this incorrect? Tell Zidgel.")
-			log("Nut City Error 105")
-			log("isDeaf", tostring(sender:isDeaf()))
-		end
+end
+function cmd.dc(ctx, args)
+	if ctx.admin == false then log(ctx.sender_name..'denied dc perms') return end
+	draftlock = false
+	if dle then log("Draftlock switched to false after channel dump") end
+	local cnl = tonumber(args[2])
+	local server
+	if cnl <= 5 and cnl >= 1 then
+		server = find("Add Up", "Pug Server "..tostring(cnl))
+	else
+		log("Invalid channel to dump: " .. cnl)
+		return
 	end
-	if string.find(msg, "!undeaf", 1) == 1 then
-		if senderData.selfbotdeaf == true then
-			sender:setDeaf(false)
-			senderData.selfbotdeaf = false
-			log(sender:getName() .. " selfbot undeafened.")
-		else
-			sender:message("Says here you're not server deafened. Is this incorrect? Tell Zidgel.")
-			log("Nut City Error 106")
-			log("isDeaf", tostring(sender:isDeaf()))
+	ctx.channel:messager("Attempting to dump channels...")
+	log("Trying to dump channel " .. args[2])
+	for _,room in pairs(server:getChildren()) do
+		for _,user in pairs(room:getUsers()) do
+			user:move(addup)
 		end
 	end
-	if isAdmin(sender) then
-		if string.find(msg, "!roll", 1) == 1 then
-			draftlock = true
-			log("Draftlock switched to true after roll begins")
-			pugroot:messager("Medics being rolled, draft is locked.")
-			for _,u in pairs(players) do
-				u.captain = false
-				u.volunteered = false
-			end
-			generateUsersAlpha()
-			local toRoll
-			if #msg < 7 then
-				toRoll = 2
-			else	
-				toRoll = tonumber(msg:sub(7,7))
-			end
-			while toRoll > 0 do
-				roll(randomTable(getlen(addup)))
-				toRoll = toRoll - 1
+	addup:messager("Channel "..cnl.." dumped by "..ctx.sender_name)
+	for _,room in pairs(server:getChildren()) do
+		room:link(addup)
+	end
+end
+function cmd.strike(ctx, args)
+	if ctx.admin == false then return end
+	local player = args[2]
+	players[player].medicImmunity = false
+	log(ctx.sender_name .. " removes Medic Immunity from " .. player)
+	addup:messager(ctx.sender_name .. " removes " .. player .. "'s medic immunity.")
+end
+function cmd.ami(ctx, args)
+	if ctx.admin == false then return end
+	local player = args[2]
+	players[player].medicImmunity = true
+	log(ctx.sender_name .. " gives medic immunity to " .. player)
+	addup:messager(ctx.sender_name .. " gives " .. player .. " medic immunity.")
+end
+function cmd.clearmh(ctx)
+	if ctx.admin == false then return end
+	for _,v in pairs(players) do
+		if not isMac(k) then
+			v.medicImmunity = false
+			v.captain = false
+			v.volunteered = false
+		end
+	end
+	log(ctx.sender_name .. " cleared medic history.")
+end
+function cmd.pmh(ctx)
+	for player,data in pairs(players) do
+		if data.medicImmunity then
+			ctx.sender:message(player .. " has medic immunity")
+		end
+	end
+end
+function cmd.link(ctx, args)
+	if ctx.admin == false then log(ctx.sender_name..'denied perms') return end
+	local server = tonumber(args[2])
+	if server == 1 then
+		server = channelTable.room1
+	elseif server == 2 then
+		server = channelTable.room2
+	elseif server == 3 then
+		server = channelTable.room3
+	end
+	local red, blu = server.red.object, server.blu.object
+	addup:link(blu, red)
+	blu:link(red)
+	log("Server " .. args[2] .. " subchannels linked by " .. ctx.sender_name)
+end
+function cmd.unlink(ctx, args)
+	if ctx.admin == false then return end
+	local server = tonumber(args[2])
+	if server == 1 then
+		server = channelTable.room1
+	elseif server == 2 then
+		server = channelTable.room2
+	elseif server == 3 then
+		server = channelTable.room3
+	end
+	local red, blu = server.red.object, server.blu.object
+	addup:unlink(blu, red)
+	blu:unlink(red)
+	draftlock = false
+	log("Draftlock switched to false in accordance with unlink, DLE IS: "..tostring(dle))
+	log("Server " .. args[2] .. " subchannels unlinked by " .. ctx.sender_name)
+end
+function cmd.mute(ctx, args)
+	if ctx.admin == false then return end
+	local ec		--whether or not to exclude captains from mutings.
+	if args[2] == "all" then ec = false else ec = true end
+	local _players = {}		--normally i could just override players but i need the real players to be avail in this func
+	for _,user in pairs(addup:getUsers()) do table.insert(_players, user) end
+	for _,channel in pairs(addup:getLinks()) do
+		for _,user in pairs(channel:getUsers()) do table.insert(_players, user) end
+	end
+	for _,user in pairs(_players) do
+		local p = players[user:getName():lower()]
+		if not isAdmin(user) then
+			if not ec or (ec and not p.captain) then
+				user:setMuted(true)
 			end
 		end
-		if string.find(msg, "!dc ", 1) == 1 then
-			draftlock = false
-			if dle then log("Draftlock switched to false after channel dump") end
-			local cnl = tonumber(msg:sub(5))
-			local server
-			if cnl <= 5 and cnl >= 1 then
-				server = find("Add Up", "Pug Server "..tostring(cnl))
-			else
-				log("Invalid channel to dump: " .. cnl)
-			end
-			sentchannel:messager("Attempting to dump channels...")
-			log("Trying to dump channel " .. msg:sub(5))
-			for _,room in pairs(server:getChildren()) do
-				for _,user in pairs(room:getUsers()) do
-					user:move(addup)
-				end
-			end
-			addup:messager("Channel "..cnl.." dumped by ".. sender:getName())
-			for k,v in pairs(server:getChildren()) do
-				v:link(addup)
-			end
-		end
-		if string.find(msg, "!strike", 1) == 1 then
-			local player = msg:sub(9)
-			players[player].medicImmunity = false
-			log(sender:getName() .. " removes Medic Immunity from " .. player)
-			addup:messager(sender:getName() .. " removes " .. player .. "'s medic immunity.")
-		end
-		if string.find(msg, "!ami", 1) == 1 then
-			local player = msg:sub(6)
-			players[player].medicImmunity = true
-			log(sender:getName() .. " gives medic immunity to " .. player)
-			addup:messager(sender:getName() .. " gives " .. player .. " medic immunity.")
-		end
-		if string.find(msg, "!clearmh", 1) == 1 then
-			clear_medics()
-			log(sender:getName() .. " cleared medic history.")
-		end
-		if string.find(msg, "!pmh", 1) == 1 then
-			for k,v in pairs(players) do
-				if v.medicImmunity then
-					sender:message(k .. " has medic immunity")
-				end
-			end
-		end
-		if string.find(msg, "mute") then --this part is written very poorly :D ### REWRITE REWRITE REWRITE
-			local b			--the boolean to set mute to.
-			local ec = true		--whether or not to exclude captains from mutings.
-			if string.find(msg, "!mute", 1) == 1 then
-				b = true
-				log(sender:getName().." muted all users.")
-			elseif string.find(msg, "!unmute", 1) == 1 then
-				b = false
-				log(sender:getName().." unmuted all users.")
-			else
-				return
-			end
-			local condition = msg:gsub("!mute ", ""):gsub("!unmute ", ""):lower()
-			if condition == "all" or msg:find("!unmute", 1) == 1 then
-				ec = false
-			else
-				ec = true
-			end
-			for _,user in pairs(addup:getUsers()) do
-				local p = players[user:getName():lower()]
-				if not isAdmin(user) then
-					if not ec or (ec and not p.captain) then
-						user:setMuted(b)
-					end
-				end
-			end
-			for _,channel in pairs(addup:getLinks()) do
-				for _,user in pairs(channel:getUsers()) do
-					local p = players[user:getName():lower()]
-					if not isAdmin(user) then
-						if not ec or (ec and not p.captain) then
-							user:setMuted(b)
-						end
-					end
-				end
-			end
-		end
-		if string.find(msg, "!link", 1) == 1 then
-			local server = tonumber(msg:sub(7,7))
-			if server == 1 then
-				server = channelTable.room1
-			elseif server == 2 then
-				server = channelTable.room2
-			elseif server == 3 then
-				server = channelTable.room3
-			end
-			local red, blu = server.red.object, server.blu.object
-			addup:link(blu, red)
-			blu:link(red)
-			log("Server " .. msg:sub(7,7) .. " subchannels linked")
-		end
-		if string.find(msg, "!unlink", 1) == 1 then
-			local server = tonumber(msg:sub(9,9))
-			if server == 1 then
-				server = channelTable.room1
-			elseif server == 2 then
-				server = channelTable.room2
-			elseif server == 3 then
-				server = channelTable.room3
-			end
-			local red, blu = server.red.object, server.blu.object
-			addup:unlink(blu, red)
-			blu:unlink(red)
-			draftlock = false
-			log("Draftlock switched to false in accordance with unlink, DLE IS: "..tostring(dle))
-			log("Server " .. msg:sub(9,9) .. " subchannels unlinked")
-		end
-		if string.find(msg, "!reload", 1) == 1 then
-			local f = msg:sub(9)
-			if f == "admins" then
-				admins = loadCSV("admins.csv")
-				log("Reloaded admins table")
-			elseif f == "mi" then
-				macadamias = loadCSV("mi.csv")
-				log("Reloaded macadamias table")
-			end
-		end
-		if string.find(msg, "!append", 1) == 1 then
-			local kwords = {}
-			for word in msg:gmatch("%w+") do
-				table.insert(kwords, word)
-			end
-			table.insert(_G[kwords[2]], kwords[3])
-			local file = io.open(kwords[2]..'.csv', 'a')
-			file:write(kwords[3])
-			file:close()
-			log(sender:getName() .. " committed " .. kwords[3] .. " to table " .. kwords[2])
-		end
-		if string.find(msg, "!getid", 1) == 1 then
-			local player = msg:sub(8)
-			print(tostring(players[player].object:getID()))
-		end
-		if string.find(msg, "!printall", 1) == 1 then
-			for k,v in pairs(players) do
-				print(k, inspect(v))
-				print("*****************************")
-			end
-		end
-		if string.find(msg, "!copy", 1) == 1 then
-			local kwords = {}
-			for word in msg:gmatch("%w+") do
-				table.insert(kwords, word)
-			end
-			players[kwords[3]] = players[kwords[2]]
-			--"!copy GamerA GamerB" 
-			--GamerB takes on the data (med immunity, etc) of GamerA
-			log("data copied: " ..kwords[2].."->"..kwords[3])
-		end
-		if string.find(msg, "!fv", 1) == 1 then
-			--fv Gamer1 Gamer2
-			--Gamer1 is a med and Gamer2 is a civilian, but now they swap roles
-			--as if Gamer2 had used !v
-			local kwords = {}
-			for word in msg:gmatch("%w+") do
-				table.insert(kwords, word)
-			end
-			local pOut, pIn = players[kwords[2]], players[kwords[3]]
-			local nc = pOut.object:getChannel()
-			if pOut.volunteered then
-				log(kwords[2].." can't be volunteered for, they're already a volunteer.")
-				return
-			end
-			pIn.object:move(nc)
-			pIn.medicImmunity, pIn.volunteered, pIn.captain = true, true, true
-			pOut.object:move(addup)
-			pOut.medicImmunity, pOut.captain = false, false
-			log("Force-volunteer, swapped med "..kwords[2].." for civilian "..kwords[3])
-		end
+	end
+end
+function cmd.unmute(ctx)
+	if ctx.admin == false then return end
+	local _players = {}		--normally i could just override players but i need the real players to be avail in this func
+	for _,user in pairs(addup:getUsers()) do table.insert(_players, user) end
+	for _,channel in pairs(addup:getLinks()) do
+		for _,user in pairs(channel:getUsers()) do table.insert(_players, user) end
+	end
+	for _,user in pairs(_players) do
+		user:setMuted(false)
+	end
+	log(ctx.sender_name .. " unmuted everyone.")
+end
+function cmd.reload(ctx, args)
+	if ctx.admin == false then return end
+	local f = args[2]
+	if f == "admins" then
+		admins = loadCSV("admins.csv")
+		log("Reloaded admins table")
+	elseif f == "mi" then
+		macadamias = loadCSV("mi.csv")
+		log("Reloaded macadamias table")
+	end
+end
+function cmd.append(ctx, args)
+	if ctx.admin == false then return end
+	table.insert(_G[args[2]], args[3])
+	local file = io.open(args[2]..'.csv', 'a')
+	file:write(args[3]..'\n')
+	file:close()
+	log(ctx.sender_name.." committed "..args[3].." to table "..args[2])
+end
+function cmd.copy(ctx, args)
+	if ctx.admin == false then return end
+	players[args[3]] = players[args[2]]
+	--"!copy GamerA GamerB" 
+	--GamerB takes on the data (med immunity, etc) of GamerA
+	log("data copied: " ..args[2].."->"..args[3])
+end
+function cmd.fv(ctx, args)
+	if ctx.admin == false then return end
+	--fv Gamer1 Gamer2
+	--Gamer1 is a med and Gamer2 is a civilian, but now they swap roles
+	--as if Gamer2 had used !v
+	local pOut, pIn = players[args[2]], players[args[3]]
+	local nc = pOut.object:getChannel()
+	if pOut.volunteered then
+	log(args[2].." can't be volunteered for, they're already a volunteer.")
+		return
+	end
+	pIn.object:move(nc)
+	pIn.medicImmunity, pIn.volunteered, pIn.captain = true, true, true
+	pOut.object:move(addup)
+	pOut.medicImmunity, pOut.captain = false, false
+	log("Force-volunteer, swapped med "..args[2].." for civilian "..args[3])		
+end
+--[[
 		if string.find(msg, "!warn", 1) == 1 then
 			local player = msg:sub(7)
 			if players[player].warnings then
@@ -584,69 +491,207 @@ client:hook("OnMessage", function(event)
 			local player = msg:sub(11)
 			sender:message(player .." was warned ")
 		end
-		if string.find(msg, "!draftlock", 1) == 1 then
-			draftlock = not draftlock
-			if draftlock and dle then 
-				addup:messager(sender:getName() .. " locked the draft!") 
-			else
-				addup:messager(sender:getName() .. " unlocked the draft!")
+]]-- in progress :)
+function cmd.draftlock(ctx)
+	if ctx.admin == false then return end
+	draftlock = not draftlock
+	if draftlock and dle then 
+		addup:messager(ctx.sender_name .. " locked the draft!") 
+	else
+		addup:messager(ctx.sender_name .. " unlocked the draft!")
+	end
+	log(ctx.sender_name .. " toggled draft lock to " .. tostring(draftlock))
+end
+function cmd.sync(ctx)
+	if ctx.admin == false then return end
+	for _,server in pairs(channelTable) do
+		for _,room in pairs(server) do
+			room.length = getlen(room.object)
+		end
+	end
+	log("Updated channel lengths on the fly.")
+	lenprintout()
+end
+function cmd.toggle(ctx, args)
+	if ctx.admin == false then return end
+	if args[2] == "dl" or args[2] == "dle" then
+		dle = not dle
+		sender:message("The draftlock system is now..")
+		if dle then
+			sender:message("On.")
+			sender:message("Draftlocked?: "..tostring(draftlock))
+		else
+			sender:message("Off.")
+		end
+		log("Draftlock eligibility toggled to "..tostring(dle))
+	elseif args[2] == "motd" then
+		msgen = not msgen
+		log("MOTD toggled to "..tostring(msgen).." by "..ctx.sender_name)
+	end		
+end
+function cmd.mund(ctx)
+	if ctx.admin == false then return end
+	local t = {}
+	for _,user in pairs(client:getUsers()) do
+		local p = players[user:getName():lower()]
+		if p.selfbotdeaf then
+			user:setDeaf(false)
+			p.selfbotdeaf = false
+			table.insert(t, user:getName())
+		end
+	end
+	log(ctx.sender_name .. " mass undeafened: " .. table.concat(t, " "))
+end
+function cmd.setmotd(ctx, args)
+	if ctx.admin == false then return end
+	motd = args[2]
+	log("MOTD set to "..motd.." by "..ctx.sender_name)
+end
+function cmd.afkcheck(ctx, args)
+	if ctx.admin == false then return end
+	for _,user in pairs(addup:getUsers()) do
+		if args[2] == nil or string.find(user:getName():lower(), args[2], 1, true) then
+			user:requestStats()	
+			log("Requested stats on " .. user:getName())		
+		end
+	end
+end
+function cmd.massadd(ctx, args)
+	if ctx.admin == false then return end
+	table.remove(args, 1)	--remove cmd name :)
+	for _,user in ipairs(args) do
+		local p = players[user:lower()]
+		if not p then					--if given player doesn't exist
+			players[user:lower()] = {
+				medicImmunity = true	--bandaid solution
+			}
+		else
+			p.medicImmunity = true
+		end
+	end
+	log(ctx.sender_name .. " gave med immunity to " .. table.concat(args, ",", 2))
+end
+--[[		User Commands		]]--
+function cmd.v(ctx, args)
+	if ctx.channel == addup or ctx.channel == fatkids or ctx.channel == connectlobby then
+		local team = args[2]:lower()
+		local server = tonumber(args[3])
+		if server == 1 then
+			server = channelTable.room1
+		elseif server == 2 then
+			server = channelTable.room2
+		elseif server == 3 then
+			server = channelTable.room3
+		else
+			if channelTable.room1.red.length + channelTable.room1.blu.length < 3 then
+				server = channelTable.room1
+			elseif channelTable.room2.red.length + channelTable.room2.blu.length < 3 then
+				server = channelTable.room2
+			elseif channelTable.room3.red.length + channelTable.room3.blu.length < 3 then
+				server = channelTable.room3
 			end
-			log(sender:getName() .. " toggled draft lock to " .. tostring(draftlock))
 		end
-		if string.find(msg, "!sync", 1) == 1 then
-			for _,server in pairs(channelTable) do
-				for _,room in pairs(server) do
-					room.length = getlen(room.object)
-				end
+		if server.red.length + server.blu.length < 3 then
+			if team == "red" then
+				team = server.red.object
+			elseif team == "blu" or team == "blue" then
+				team = server.blu.object
 			end
-			log("Updated channel lengths on the fly.")
-			lenprintout()
-		end
-		if string.find(msg, "!toggle", 1) == 1 then
-			local kwords = {}
-			for word in msg:gmatch("%w+") do
-				table.insert(kwords, word)
+			for _,user in pairs(team:getUsers()) do
+				if players[user:getName():lower()].volunteered then return end					
+				players[user:getName():lower()].medicImmunity = false
+				players[user:getName():lower()].captain = false
+				user:move(addup)
 			end
-			if kwords[2] == "dl" or kwords[2] == "dle" then
-				dle = not dle
-				sender:message("The draftlock system is now..")
-				if dle then
-					sender:message("On.")
-					sender:message("Draftlocked?: "..tostring(draftlock))
-				else
-					sender:message("Off.")
-				end
-				log("Draftlock eligibility toggled to "..tostring(dle))
-			elseif kwords[2] == "motd" then
-				msgen = not msgen
-				log("MOTD toggled to "..tostring(msgen).." by "..sender:getName())
-			end		
+			ctx.sender:move(team)
+			local p = players[ctx.sender:getName():lower()]
+			p.medicImmunity = true
+			p.volunteered = true
+			p.captain = true
+		else
+			log("Nut City Error code 102")
 		end
-		if string.find(msg, "!cull", 1) == 1 then
-			pugroot:messager("Deafened users are being moved to chill room! Blame "..sender:getName())
-			for _,user in pairs(addup:getUsers()) do
-				if user:isSelfDeaf() then
-					user:move(notplaying)
-				end
-			end
-			log("Deafened users culled")
-		end
-		if string.find(msg, "!mund", 1) == 1 then
-			local t = {}
-			for key,user in pairs(client:getUsers()) do
-				local n = players[user:getName():lower()]
-				if n.selfbotdeaf then
-					user:setDeaf(false)
-					n.selfbotdeaf = false
-					table.insert(t, user:getName())
-				end
-			end
-			log(sender:getName() .. " mass undeafened: " .. table.concat(t, " "))
-		end
-		if string.find(msg, "!setmotd", 1) == 1 then
-			motd = string.sub(msg, 10) 
-			log("MOTD set to "..motd.." by "..sender:getName())
-		end
+	else
+		log("Nut City Error code 103")
+		log(ctx.channel:getName().."*"..ctx.channel:getParent():getName())
+	end
+end
+function cmd.rn(ctx)
+	ctx.sender:message(string.reverse(ctx.sender_name))
+end
+function cmd.flip(ctx)
+	math.randomseed(os.time())
+	local r = math.random(1, 2)
+	local c
+	if r == 1 then
+		c = ("Heads")
+	else
+		c = ("Tails")
+	end
+	ctx.channel:message(c.." (Coin flipped by "..ctx.sender_name..")")
+end
+function cmd.rng(ctx, args)
+	math.randomseed(os.time())
+	sender:message(tostring(math.random(tonumber(args[2]), tonumber(args[3]))))
+end
+function cmd.deaf(ctx)
+	if ctx.p_data.selfbotdeaf == false then
+		ctx.sender:setDeaf(true)
+		ctx.p_data.selfbotdeaf = true
+		log(ctx.sender_name .. " selfbot deafened.")
+	else
+		sender:message("Says here you're actually server deafened. Is this incorrect? Tell Zidgel.")
+		log("Nut City Error 105")
+		log("isDeaf", tostring(sender:isDeaf()))
+	end
+end
+function cmd.undeaf(ctx)
+	if ctx.p_data.selfbotdeaf == true then
+		ctx.sender:setDeaf(false)
+		ctx.p_data.selfbotdeaf = false
+		log(ctx.sender_name .. " selfbot undeafened.")
+	else
+		sender:message("Says here you're not server deafened. Is this incorrect? Tell Zidgel.")
+		log("Nut City Error 106")
+		log("isDeaf", tostring(sender:isDeaf()))
+	end
+end
+
+--Supplemental functions
+
+function afkexpel(event)		--not a command
+	local user = event.user
+	if event.idlesecs > 300 then
+		log(user:getName().." is idle, but not deafened, moving them. Mins:"..tostring(event.idlesecs/60))
+		user:move(notplaying)
+		user:message("Hey! I think you've been idle for 5 minutes so I'm moving you to chill room. You should move back into addup if you're here!")
+	end
+end
+
+--[[==
+LUA-MUMBLE HOOKS						**EXCEPT ON SERVER SYNC AHEMHEM.
+	==]]--
+
+client:hook("OnMessage", function(event)
+	--[[
+	channel:message("TEXT!") --send message to channel!
+	event is a table with keys: "actor", "message", "users", "channels"
+	]]--
+	local msg = event.message
+	msg = msg:gsub("<.+>", ""):gsub("\n*", ""):gsub("%s$", "")	--clean off html tags added by mumble, as well as trailing spaces and newlines.
+	log("MSG FROM " .. event.actor:getName() .. " IN CHANNEL " .. event.actor:getChannel():getName() .. ": " .. msg)
+	if string.find(msg, "!", 1) == 1 then
+		parse(string.gsub(msg, "!", ""), {
+				p_data = players[event.actor:getName():lower()], 
+				admin = isAdmin(event.actor), 
+				sender_name = event.actor:getName(),
+				sender = event.actor,
+				channel = event.actor:getChannel()})
+	end
+	if string.find(msg, "!help", 1) == 1 then
+		event.actor:getChannel():message(
+		"All Users:<br />!help - this menu.<br />!v red - volunteers for red team.<br />!pmh - prints medic history.<br />!rn - Your name backwords<br />!flip - Flip a coin. Everyone in your channel will see the result.<br />!rng x y - A random number between x and y.<br /><br />Admins:<br />!roll - Rolls for 2 medics. Specify '!roll 1' to roll just one.<br />'!fv user1 user2' - Swaps a Medic user1 out for a volunteer, user2.<br />'!dc 1' - Dump subchannels in server 1.<br />!mute/!unmute - mutes everyone but admins and captains, or unmutes them.<br />!ami - Adds medic immunity to a specified user.<br />!strike - removes medic immunity from a specified user.<br />'!fv userout userin' - Replace medic userout with the NEW medic userin.<br />!draftlock - Toggle whether or not people can move to addup."
+		)
 	end
 end)
 
@@ -744,6 +789,8 @@ client:hook("OnUserChannel", function(event)
 		u.channelB = event.to
 	end
 end)
+
+client:hook("OnUserStats", afkexpel)
 
 client:hook("OnTick", function()
 
