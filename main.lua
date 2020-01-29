@@ -1,6 +1,5 @@
 local mumble = require "mumble"
 local inspect = require "inspect"
-local csv = require "csv"
 
 function getTime() --the library has mumble.gettime() but that only returns ms
 	local _time = os.date('*t')
@@ -19,21 +18,20 @@ function log(text, p)	--text to log, print?
 	file:close()
 end
 
-function loadCSV(file)
-	local t = {}
-	local f = csv.open(file)
-	for fields in f:lines() do
-		table.insert(t, fields[1]) --the module should take care of this but it doesn't? I don't know, might as well rewrite this without needing an external module.	
+function qlines(file)				--q[uickly read]lines and return their contents.
+	local output = {}
+	for line in io.lines(file) do
+		if not line:find("%s") then table.insert(output, line) end	--skips blank lines
 	end
-	return t
+	return output
 end
 
-macadamias = loadCSV("mi.csv")
-admins = loadCSV("admins.csv")
+macadamias = qlines("mi.csv")
+admins = qlines("admins.csv")
 channelTable = {}
 usersAlpha = {}
 players = {}
-warnings = loadCSV("warn.csv")
+--warnings = loadCSV("warn.csv")
 
 function isMac(s)	--s will be a name only, not a user object
 	for _,v in ipairs(macadamias) do
@@ -174,7 +172,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." "..tostring(client:isSynced()).." v3.0.0".." @ ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." "..tostring(client:isSynced()).." v3.0.1".." @ ".. _date)
 	log("===========================================",false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -189,20 +187,19 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	players = {}
 	for _,v in pairs(client:getUsers()) do
 		local u = v:getName():lower()
-		local warn
+		--[[local warn
 		for _,w in pairs(warnings) do
 			if w[1] == u then
 				warn = tonumber(w[2])
 				break
 			end
-		end
+		end]]--
 		players[u] = {
 			object = v,
 			volunteered = false,
 			captain = false,
 			dontUpdate = false,
 			channelB = v:getChannel(),
-			warnings = warn,
 			selfbotdeaf = false
 		}
 		if isMac(u) then
@@ -437,10 +434,10 @@ function cmd.reload(ctx, args)
 	if ctx.admin == false then return end
 	local f = args[2]
 	if f == "admins" then
-		admins = loadCSV("admins.csv")
+		admins = qlines("admins.csv")
 		log("Reloaded admins table")
 	elseif f == "mi" then
-		macadamias = loadCSV("mi.csv")
+		macadamias = qlines("mi.csv")
 		log("Reloaded macadamias table")
 	end
 end
@@ -656,6 +653,11 @@ function cmd.undeaf(ctx)
 		log("isDeaf", tostring(sender:isDeaf()))
 	end
 end
+function cmd.padm(ctx)
+	for _,val in ipairs(admins) do
+		print(val)
+	end
+end
 
 --Supplemental functions
 
@@ -698,13 +700,13 @@ end)
 client:hook("OnUserConnected", function(event)
 	local name = event.user:getName():lower()
 	log("USER CONNECT: "..event.user:getName())
-	local warn
-	for _,w in pairs(warnings) do
+	--local warn
+	--[[for _,w in pairs(warnings) do
 		if w[1] == u then
 			warn = tonumber(w[2])
 			break
 		end
-	end
+	end]]--
 	if players[name] == nil then
 		players[name] = {
 			object = event.user,
@@ -712,7 +714,6 @@ client:hook("OnUserConnected", function(event)
 			captain = false,
 			channelB = event.user:getChannel(),
 			dontUpdate = false,
-			warnings = warn,
 			selfbotdeaf = false
 		}
 		if isMac(event.user:getName()) then
