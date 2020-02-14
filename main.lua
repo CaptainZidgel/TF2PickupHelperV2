@@ -4,16 +4,16 @@ local inspect = require "inspect"
 function getTime() --the library has mumble.gettime() but that only returns ms
 	local _time = os.date('*t')
 	_time = ("%02d:%02d:%02d"):format(_time.hour, _time.min, _time.sec)
-	return " @ " .. _time --automatically adds the @ symbol for ease of use
+	return "[".._time.."] "
 end
 
 function log(text, p)	--text to log, print?
 	p = p == nil	--normally to make defaults you can do p = p or 'def' but since false is a valid answer here we gotta use something different
 	local file = io.open("log.txt", "a")
 	file:write("\n")
-	file:write(text .. getTime())
+	file:write(getTime() .. text)
 	if p then
-		print(text .. getTime())
+		print(getTime() .. text)
 	end
 	file:close()
 end
@@ -172,8 +172,8 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." "..tostring(client:isSynced()).." v3.0.1".." @ ".. _date)
-	log("===========================================",false)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.1.0".." on ".. _date)
+	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
 	root = joe:getChannel():getParent():getParent()
@@ -244,10 +244,13 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	dle = true
 end)
 
-function mumble.channel.messager(self, m) --channel, message
+function mumble.channel.messager(self, m, cc) --channel, message, carbon copy to: (typically sender)
 	self:message(m)
 	for _,channels in pairs(self:getChildren()) do
 		channels:message(m)
+	end
+	if cc then
+		cc:message(m)
 	end
 end
 
@@ -341,14 +344,14 @@ function cmd.strike(ctx, args)
 	local player = args[2]
 	players[player].medicImmunity = false
 	log(ctx.sender_name .. " removes Medic Immunity from " .. player)
-	addup:messager(ctx.sender_name .. " removes " .. player .. "'s medic immunity.")
+	addup:messager(ctx.sender_name .. " removes " .. player .. "'s medic immunity.", ctx.sender)
 end
 function cmd.ami(ctx, args)
 	if ctx.admin == false then return end
 	local player = args[2]
 	players[player].medicImmunity = true
 	log(ctx.sender_name .. " gives medic immunity to " .. player)
-	addup:messager(ctx.sender_name .. " gives " .. player .. " medic immunity.")
+	addup:messager(ctx.sender_name .. " gives " .. player .. " medic immunity.", ctx.sender)
 end
 function cmd.clearmh(ctx)
 	if ctx.admin == false then return end
@@ -493,9 +496,9 @@ function cmd.draftlock(ctx)
 	if ctx.admin == false then return end
 	draftlock = not draftlock
 	if draftlock and dle then 
-		addup:messager(ctx.sender_name .. " locked the draft!") 
+		addup:messager(ctx.sender_name .. " locked the draft!", ctx.sender) 
 	else
-		addup:messager(ctx.sender_name .. " unlocked the draft!")
+		addup:messager(ctx.sender_name .. " unlocked the draft!", ctx.sender)
 	end
 	log(ctx.sender_name .. " toggled draft lock to " .. tostring(draftlock))
 end
@@ -568,9 +571,13 @@ function cmd.massadd(ctx, args)
 	end
 	log(ctx.sender_name .. " gave med immunity to " .. table.concat(args, ",", 2))
 end
+function cmd.readout(ctx, args)
+	if ctx.admin == false then return end
+	ctx.sender:message(args[2] .. ": " .. tostring(_G[args[2]]))
+end
 --[[		User Commands		]]--
 function cmd.v(ctx, args)
-	if ctx.channel == addup or ctx.channel == fatkids or ctx.channel == connectlobby then
+	if ctx.channel == addup or ctx.channel == fatkids or ctx.channel == connectlobby or ctx.channel == spacebase then
 		local team = args[2]:lower()
 		local server = tonumber(args[3])
 		if server == 1 then
@@ -763,7 +770,7 @@ client:hook("OnUserChannel", function(event)
 	if dle and draftlock and (event.to == addup or event.to == fatkids) and (event.from == connectlobby or event.from == notplaying) and not isAdmin(event.actor) then
 			--using if event.from == connectlobby will exclude people moving in from other channels, like game channels or general, but thats a rare use case
 			if event.actor ~= event.user then
-			log(event.user:getName() .. " moved by " .. event.actor:getName() .. " from " .. event.from:getName() .. " to " .. event.to:getName())
+				log(event.user:getName() .. " moved by " .. event.actor:getName() .. " from " .. event.from:getName() .. " to " .. event.to:getName())
 			end
 			log(event.user:getName() .. " tried to addup, was locked out.")
 			event.user:move(connectlobby)
