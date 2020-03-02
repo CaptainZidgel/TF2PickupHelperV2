@@ -105,11 +105,21 @@ function getlen(c, recursive)
 	return i
 end
 
+function determine_roll_num()
+	for i,channel in ipairs(channelTable) do
+		local server = find("Add Up", "Pug Server "..tostring(i))
+		local l = getlen(server, true)
+		if l < 2 then
+			return 2 - l			--this will return "2" if 0 people are in the selected server and "1" if 1 person is added up. No overflows.
+		end
+	end
+end
+
 function roll(t)
 	log("Trying to get a new medic pick")
 	local i = 1
 	local userTesting
-	local c1, c2, c3 = channelTable.room1, channelTable.room2, channelTable.room3
+	local c1, c2, c3 = channelTable[1], channelTable[2], channelTable[3]
 	if c1.red.length + c1.blu.length >= 2 then
 	if c2.red.length + c2.blu.length >= 2 then
 	if c3.red.length + c3.blu.length >= 2 then 
@@ -172,7 +182,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.1.0".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.2.0".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -184,9 +194,11 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	notplaying = find("Add Up", "Chill Room (Not Playing)")
 	pugroot = find("Nut City Limits", "Inhouse Pugs (Nut City)")
 	joe:move(spacebase)
+	next_log_silent = false
 	players = {}
 	for _,v in pairs(client:getUsers()) do
 		local u = v:getName():lower()
+		log("Found "..u)
 		--[[local warn
 		for _,w in pairs(warnings) do
 			if w[1] == u then
@@ -200,7 +212,9 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 			captain = false,
 			dontUpdate = false,
 			channelB = v:getChannel(),
-			selfbotdeaf = false
+			selfbotdeaf = false,
+			perma_mute = false,
+			imprison = false
 		}
 		if isMac(u) then
 			players[u].medicImmunity = true
@@ -209,7 +223,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 		end
 	end
 	channelTable = {
-		room1 = {
+		{
 		    red = {
 		        object = find("Pug Server 1", "Red"),
 		        length = getlen(find("Pug Server 1", "Red"))
@@ -219,7 +233,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 		        length = getlen(find("Pug Server 1", "Blu"))
 		    }
 		},
-		room2 = {
+		{
 		    red = {
 		        object = find("Pug Server 2", "Red"),
 		        length = getlen(find("Pug Server 2", "Red"))
@@ -229,7 +243,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 		        length = getlen(find("Pug Server 2", "Blu"))
 		    }
 		},
-		room3 = {
+		{
 		    red = {
 		        object = find("Pug Server 3", "Red"),
 		        length = getlen(find("Pug Server 3", "Red"))
@@ -256,16 +270,16 @@ end
 
 function lenprintout()
 	print("-------------------------",getTime())
-	print("LENGTH OF RED1: " .. tostring(channelTable.room1.red.length))
-	print("LENGTH OF BLU1: " .. tostring(channelTable.room1.blu.length))
-	print("LENGTH OF RED2: " .. tostring(channelTable.room2.red.length))
-	print("LENGTH OF BLU2: " .. tostring(channelTable.room2.blu.length))
+	print("LENGTH OF RED1: " .. tostring(channelTable[1].red.length))
+	print("LENGTH OF BLU1: " .. tostring(channelTable[1].blu.length))
+	print("LENGTH OF RED2: " .. tostring(channelTable[2].red.length))
+	print("LENGTH OF BLU2: " .. tostring(channelTable[2].blu.length))
 	print("-------------------------")
 end
 
 local cmd = {}	--you don't even need _G to do this haha whoops i'm a doofus
 --[[ctx =
-data = senderData,						-- the players[player] data thing :)
+p_data = senderData,						-- the players[player] data thing :)
 admin = isAdmin,						-- bool :)
 sender_name = event.actor:getName(),	-- name :)
 sender = event.actor,					-- sender (mumble.user)
@@ -295,7 +309,7 @@ function cmd.cull(ctx)
 	log("Deafened users culled")
 end
 function cmd.roll(ctx, args)
-	if ctx.admin == false then log(ctx.sender_name..'denied roll perms') return end
+	if ctx.admin == false then log(ctx.sender_name..' denied roll perms') return end
 	draftlock = true
 	log("Draftlock switched to true after roll begins")
 	pugroot:messager("Medics being rolled, draft is locked.")
@@ -306,7 +320,8 @@ function cmd.roll(ctx, args)
 	generateUsersAlpha()
 	local toRoll
 	if #args < 2 then
-		toRoll = 2
+		toRoll = determine_roll_num()
+		print("No integer specified, rolling *just enough* medics!: "..tostring(toRoll))
 	else	
 		toRoll = tonumber(args[2])
 	end
@@ -332,6 +347,7 @@ function cmd.dc(ctx, args)
 	for _,room in pairs(server:getChildren()) do
 		for _,user in pairs(room:getUsers()) do
 			user:move(addup)
+			players[user:getName():lower()].imprison = false
 		end
 	end
 	addup:messager("Channel "..cnl.." dumped by "..ctx.sender_name)
@@ -372,14 +388,14 @@ function cmd.pmh(ctx)
 	end
 end
 function cmd.link(ctx, args)
-	if ctx.admin == false then log(ctx.sender_name..'denied perms') return end
+	if ctx.admin == false then log(ctx.sender_name..' denied linking perms') return end
 	local server = tonumber(args[2])
 	if server == 1 then
-		server = channelTable.room1
+		server = channelTable[1]
 	elseif server == 2 then
-		server = channelTable.room2
+		server = channelTable[2]
 	elseif server == 3 then
-		server = channelTable.room3
+		server = channelTable[3]
 	end
 	local red, blu = server.red.object, server.blu.object
 	addup:link(blu, red)
@@ -390,11 +406,11 @@ function cmd.unlink(ctx, args)
 	if ctx.admin == false then return end
 	local server = tonumber(args[2])
 	if server == 1 then
-		server = channelTable.room1
+		server = channelTable[1]
 	elseif server == 2 then
-		server = channelTable.room2
+		server = channelTable[2]
 	elseif server == 3 then
-		server = channelTable.room3
+		server = channelTable[3]
 	end
 	local red, blu = server.red.object, server.blu.object
 	addup:unlink(blu, red)
@@ -423,7 +439,7 @@ function cmd.mute(ctx, args)
 end
 function cmd.unmute(ctx)
 	if ctx.admin == false then return end
-	local _players = {}		--normally i could just override players but i need the real players to be avail in this func
+	local _players = {}
 	for _,user in pairs(addup:getUsers()) do table.insert(_players, user) end
 	for _,channel in pairs(addup:getLinks()) do
 		for _,user in pairs(channel:getUsers()) do table.insert(_players, user) end
@@ -504,7 +520,7 @@ function cmd.draftlock(ctx)
 end
 function cmd.sync(ctx)
 	if ctx.admin == false then return end
-	for _,server in pairs(channelTable) do
+	for _,server in ipairs(channelTable) do
 		for _,room in pairs(server) do
 			room.length = getlen(room.object)
 		end
@@ -573,7 +589,25 @@ function cmd.massadd(ctx, args)
 end
 function cmd.readout(ctx, args)
 	if ctx.admin == false then return end
-	ctx.sender:message(args[2] .. ": " .. tostring(_G[args[2]]))
+	if type(_G[args[2]]) == "table" then
+		for k,v in pairs(_G[args[2]]) do
+			ctx.sender:message(args[2] .. ": k,v: " .. k .. ", " .. v)
+		end
+	else
+		ctx.sender:message(args[2] .. ": " .. tostring(_G[args[2]]))
+	end
+end
+function cmd.pmute(ctx, args)									--"perma" mute a user. (in vanilla mumble, if someone server muted reconnects, then they lose their muted status. This keeps this muted.
+	if ctx.admin == false then return end
+	local player = players[args[2]]
+	local bool = not player.perma_mute				--if user is server muted (method isMuted() appears to not work)
+	player.perma_mute = bool
+	player.object:setMuted(bool)
+end
+function cmd.dpr(ctx, args)
+	if ctx.admin == false then return end
+	players[args[2]].imprison = false
+	log("Released from prison: "..args[2])
 end
 --[[		User Commands		]]--
 function cmd.v(ctx, args)
@@ -581,18 +615,18 @@ function cmd.v(ctx, args)
 		local team = args[2]:lower()
 		local server = tonumber(args[3])
 		if server == 1 then
-			server = channelTable.room1
+			server = channelTable[1]
 		elseif server == 2 then
-			server = channelTable.room2
+			server = channelTable[2]
 		elseif server == 3 then
-			server = channelTable.room3
+			server = channelTable[3]
 		else
-			if channelTable.room1.red.length + channelTable.room1.blu.length < 3 then
-				server = channelTable.room1
-			elseif channelTable.room2.red.length + channelTable.room2.blu.length < 3 then
-				server = channelTable.room2
-			elseif channelTable.room3.red.length + channelTable.room3.blu.length < 3 then
-				server = channelTable.room3
+			if channelTable[1].red.length + channelTable[1].blu.length < 3 then
+				server = channelTable[1]
+			elseif channelTable[2].red.length + channelTable[2].blu.length < 3 then
+				server = channelTable[2]
+			elseif channelTable[3].red.length + channelTable[3].blu.length < 3 then
+				server = channelTable[3]
 			end
 		end
 		if server.red.length + server.blu.length < 3 then
@@ -608,10 +642,15 @@ function cmd.v(ctx, args)
 				user:move(addup)
 			end
 			ctx.sender:move(team)
-			local p = players[ctx.sender:getName():lower()]
+			local p = ctx.p_data				--data of the sender
 			p.medicImmunity = true
 			p.volunteered = true
 			p.captain = true
+			if getlen(team, true) < 1 then
+				log(ctx.sender_name .. " has been imprisoned due to their volunteership.")
+				ctx.sender:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be imprisoned, ask an admin to release you.")
+				p.imprison = team
+			end
 		else
 			log("Nut City Error code 102")
 		end
@@ -721,7 +760,9 @@ client:hook("OnUserConnected", function(event)
 			captain = false,
 			channelB = event.user:getChannel(),
 			dontUpdate = false,
-			selfbotdeaf = false
+			selfbotdeaf = false,
+			perma_mute = false,
+			imprison = false
 		}
 		if isMac(event.user:getName()) then
 			players[name].medicImmunity = true
@@ -734,6 +775,10 @@ client:hook("OnUserConnected", function(event)
 		players[name].captain = false
 		players[name].channelB = event.user:getChannel()
 		players[name].selfbotdeaf = false
+		if players[name].perma_mute == true then
+			event.user:setMuted(true)
+		end
+		if players[name].imprison then event.user:move(players[name].imprison) end
 	end
 	if msgen then
 		event.user:message(motd)
@@ -750,7 +795,7 @@ client:hook("OnUserRemove", function(event)
 	if event.ban then
 	log(event.user:getName() .. " banned by "..event.actor:getName().." with reason "..event.reason)
 	end
-	for _,server in pairs(channelTable) do
+	for _,server in ipairs(channelTable) do
 		for _,room in pairs(server) do
 			if room.object == u.channelB then
 				room.length = room.length - 1
@@ -767,6 +812,14 @@ end)
 client:hook("OnUserChannel", function(event)	
 	--When a user changes channels.
 	--event is a table with keys: "user", "actor", "from", "to"
+	if players[event.user:getName():lower()] == nil then
+			return --user just connected
+		end
+	if players[event.user:getName():lower()].imprison then						--if user must be imprisoned in one channel
+		if event.actor == event.user then event.user:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be imprisoned, ask an admin to release you.") end	
+		event.user:move(players[event.user:getName():lower()].imprison)
+		return
+	end
 	if dle and draftlock and (event.to == addup or event.to == fatkids) and (event.from == connectlobby or event.from == notplaying) and not isAdmin(event.actor) then
 			--using if event.from == connectlobby will exclude people moving in from other channels, like game channels or general, but thats a rare use case
 			if event.actor ~= event.user then
@@ -777,13 +830,10 @@ client:hook("OnUserChannel", function(event)
 			event.user:message("Sorry! Picking has already started and you're late! If you believe you've been wrongly locked out, tell an admin. They'll move you.")
 			--we COULD use a user.key to save the data of whether a person was in addup to allow people to reconnect and still addup, but that would be a lot of work so I'm not going to, lol
 	else
-		if players[event.user:getName():lower()] == nil then
-			return --user just connected
-		end
 		local u = players[event.user:getName():lower()]
 		if u.dontUpdate == false then
-			for _,server in pairs(channelTable) do
-				for n,room in pairs(server) do
+			for _,server in ipairs(channelTable) do
+				for _,room in pairs(server) do
 					if event.from == room.object then
 						room.length = room.length - 1
 					elseif event.to == room.object then
@@ -808,10 +858,10 @@ client:hook("OnChannelState", function(channel)
 
 end)
 
-client:hook("OnError", function(error_)
+client:hook("OnError", function(error_)		--I don't know why I'm using the underscore here haha whoops
 	if client:isSynced() then
 		log(error_)
-	else
+	else																		--technically no error val is passed if not synced.
 		print('Err, not synced')
 	end
 end)
