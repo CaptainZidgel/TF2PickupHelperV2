@@ -35,7 +35,7 @@ They're written like this:  \
 ```Lua
 function cmd.yourcommand(context, arguments)
 --[[context =
-	data = senderData,						-- The data we store in a table for all players.
+	p_data = senderData,						-- The data we store in a table for all players.
 	admin = isAdmin,						-- bool if sender is admin.
 	sender_name = event.actor:getName(),	--
 	sender = event.actor,					-- sender (mumble.user)

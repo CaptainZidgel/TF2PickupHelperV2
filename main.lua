@@ -18,7 +18,10 @@ function log(text, p)	--text to log, print?
 	file:close()
 end
 
+function file_exists(file) local f = io.open(file, "r") if f ~= nil then io.close(f) return true else return false end end	--https://stackoverflow.com/questions/4990990/check-if-a-file-exists-with-lua
+
 function qlines(file)				--q[uickly read]lines and return their contents.
+	if file_exists(file) == false then log("Attempting to read file which doesn't exist, returning empty table") return {} end
 	local output = {}
 	for line in io.lines(file) do
 		if not line:find("%s") then table.insert(output, line) end	--skips blank lines
@@ -28,10 +31,10 @@ end
 
 macadamias = qlines("mi.csv")
 admins = qlines("admins.csv")
+warrants = qlines("warrants.csv")
 channelTable = {}
 usersAlpha = {}
 players = {}
---warnings = loadCSV("warn.csv")
 
 function isMac(s)	--s will be a name only, not a user object
 	for _,v in ipairs(macadamias) do
@@ -146,7 +149,7 @@ function roll(t)
 		end
 	end
 	log("Selecting medic: " .. userTesting)
-	addup:message("Medic: " .. userTesting .. " (" .. t[i] .. ")")
+	addup:message("Medic: " .. userTesting)
 	local user = players[userTesting]
 	local red, blu
 	if c1.red.length + c1.blu.length < 2 then
@@ -182,7 +185,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.2.0".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.3.0".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -199,13 +202,6 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	for _,v in pairs(client:getUsers()) do
 		local u = v:getName():lower()
 		log("Found "..u)
-		--[[local warn
-		for _,w in pairs(warnings) do
-			if w[1] == u then
-				warn = tonumber(w[2])
-				break
-			end
-		end]]--
 		players[u] = {
 			object = v,
 			volunteered = false,
@@ -462,6 +458,7 @@ function cmd.reload(ctx, args)
 end
 function cmd.append(ctx, args)
 	if ctx.admin == false then return end
+	if #args < 3 then ctx.sender:message("You forgot something! A parameter, perhaps?") return end
 	table.insert(_G[args[2]], args[3])
 	local file = io.open(args[2]..'.csv', 'a')
 	file:write(args[3]..'\n')
@@ -492,22 +489,6 @@ function cmd.fv(ctx, args)
 	pOut.medicImmunity, pOut.captain = false, false
 	log("Force-volunteer, swapped med "..args[2].." for civilian "..args[3])		
 end
---[[
-		if string.find(msg, "!warn", 1) == 1 then
-			local player = msg:sub(7)
-			if players[player].warnings then
-				players[player].warnings = players[player].warnings + 1
-			else
-				players[player].warnings = 1
-			end
-			players[player].object:message("You've been warned.")
-			log(sender:getName() .. " warns " .. player .. " who now has " .. players[player].warnings .. " warns.")
-		end
-		if string.find(msg, "!getwarns", 1) == 1 then
-			local player = msg:sub(11)
-			sender:message(player .." was warned ")
-		end
-]]-- in progress :)
 function cmd.draftlock(ctx)
 	if ctx.admin == false then return end
 	draftlock = not draftlock
@@ -675,7 +656,7 @@ function cmd.flip(ctx)
 end
 function cmd.rng(ctx, args)
 	math.randomseed(os.time())
-	sender:message(tostring(math.random(tonumber(args[2]), tonumber(args[3]))))
+	ctx.sender:message(tostring(math.random(tonumber(args[2]), tonumber(args[3]))))
 end
 function cmd.deaf(ctx)
 	if ctx.p_data.selfbotdeaf == false then
@@ -745,14 +726,15 @@ end)
 
 client:hook("OnUserConnected", function(event)
 	local name = event.user:getName():lower()
-	log("USER CONNECT: "..event.user:getName())
-	--local warn
-	--[[for _,w in pairs(warnings) do
-		if w[1] == u then
-			warn = tonumber(w[2])
-			break
+	for i,v in ipairs(warrants) do
+		if v:lower() == name then
+			event.user:ban("The ban hammer has spoken!")
+			log("Banned " .. v .. " due to warrant!")
+			warrants[i] = nil														--remove this warrant
+			return
 		end
-	end]]--
+	end
+	log("USER CONNECT: "..event.user:getName())
 	if players[name] == nil then
 		players[name] = {
 			object = event.user,
@@ -793,7 +775,7 @@ client:hook("OnUserRemove", function(event)
 	local u = players[event.user:getName():lower()]
 	log("USER DISCO/REM: "..event.user:getName(), false)
 	if event.ban then
-	log(event.user:getName() .. " banned by "..event.actor:getName().." with reason "..event.reason)
+		log(event.user:getName() .. " banned by "..event.actor:getName().." with reason "..event.reason)
 	end
 	for _,server in ipairs(channelTable) do
 		for _,room in pairs(server) do
