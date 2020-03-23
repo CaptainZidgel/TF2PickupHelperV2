@@ -24,9 +24,17 @@ function qlines(file)				--q[uickly read]lines and return their contents.
 	if file_exists(file) == false then log("Attempting to read file which doesn't exist, returning empty table") return {} end
 	local output = {}
 	for line in io.lines(file) do
-		if not line:find("%s") then table.insert(output, line) end	--skips blank lines
+		if not line:find("%s") then output[line:lower()] = true end	--skips blank lines
 	end
 	return output
+end
+
+function write_to_file(t)	--write a table to a csv file with the same name. This is the easiest solution I could think of for my problem. Rather than try and reopen and edit out specific lines from files, I just rewrite the files.
+	local file = io.open(t..'.csv', 'w+')		--"w+" = open the file given (t..'.csv') and write over it (all data lost)
+	for k,v in pairs(_G[t]) do
+		file:write(k..'\n')
+	end
+	file:close()
 end
 
 macadamias = qlines("mi.csv")
@@ -62,13 +70,12 @@ function find(p, c)		--parent, child | The library technically has a way to do t
 	end
 end
 
-function isAdmin(s)		--s will be the sender of a message, a user obj
-	for _,v in ipairs(admins) do
-		if v:lower() == s:getName():lower() and s:getID() ~= 0 then --0 means unregistered
-			return true
-		end
+function isAdmin(s)		--s will be the sender of a message, a user obj. we lower their name then find the value of the key in the admins table.
+	if s:getID() == 0 then
+		return false --user is unregistered!!!!
+	else
+		return admins[s:getName():lower()]
 	end
-	return false
 end
 
 function generateUsersAlpha()
@@ -185,7 +192,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.3.0".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.4.0".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -446,25 +453,39 @@ function cmd.unmute(ctx)
 	log(ctx.sender_name .. " unmuted everyone.")
 end
 function cmd.reload(ctx, args)
+	--!reload admins from_file
+	--!reload admins from_table
 	if ctx.admin == false then return end
-	local f = args[2]
-	if f == "admins" then
-		admins = qlines("admins.csv")
-		log("Reloaded admins table")
-	elseif f == "mi" then
-		macadamias = qlines("mi.csv")
-		log("Reloaded macadamias table")
+	if args[3] == "from_file" then
+		_G[args[2]] = qlines(args[2]..".csv")
+		log("Reloaded "..args[2].." (file->table)")
+	elseif args[3] == "from_table" then
+		write_to_file(args[2])
+		log("Reloaded "..args[2].." (table->file)")
 	end
 end
 function cmd.append(ctx, args)
 	if ctx.admin == false then return end
-	if #args < 3 then ctx.sender:message("You forgot something! A parameter, perhaps?") return end
-	table.insert(_G[args[2]], args[3])
-	local file = io.open(args[2]..'.csv', 'a')
-	file:write(args[3]..'\n')
-	file:close()
+	if #args < 3 then ctx.sender:message("Are you missing a parameter?") return end
+	_G[args[2]][args[3]] = true
+	write_to_file(args[2])
 	log(ctx.sender_name.." committed "..args[3].." to table "..args[2])
+	ctx.sender:message("Added "..args[3].." to table "..args[2])
 end
+function cmd.remove(ctx, args)
+	if ctx.admin == false then return end
+	if #args < 3 then ctx.sender:message("Are you missing a parameter?") return end
+	_G[args[2]][args[3]] = nil
+	write_to_file(args[2])
+	log(ctx.sender_name.." removed "..args[3].." from table "..args[2])
+	ctx.sender:message("removed "..args[3].." from table "..args[2])
+end
+	--[[an explanation for append and remove:
+			in Lua tables you cannot remove values based simply on their 'value'. You can only remove based on index or key.
+			finding an unknown index of a value you do know would involve looping which is a little more involved to write.
+			in our very simple tables, every value is just a string. strings can be keys. If we want to detect and modify the value of a string
+			we could just make the string the key of a meaningless value, then modify the value to identify it as existing or not existing.
+	--]]
 function cmd.copy(ctx, args)
 	if ctx.admin == false then return end
 	players[args[3]] = players[args[2]]
@@ -571,9 +592,11 @@ end
 function cmd.readout(ctx, args)
 	if ctx.admin == false then return end
 	if type(_G[args[2]]) == "table" then
+		ctx.sender:message("Attemping to readout from table...")
 		for k,v in pairs(_G[args[2]]) do
-			ctx.sender:message(args[2] .. ": k,v: " .. k .. ", " .. v)
+			ctx.sender:message(args[2] .. ": k,v: " .. k .. ", " .. tostring(v))
 		end
+		ctx.sender:message("Finished reading from table...")
 	else
 		ctx.sender:message(args[2] .. ": " .. tostring(_G[args[2]]))
 	end
@@ -680,9 +703,11 @@ function cmd.undeaf(ctx)
 		log("isDeaf", tostring(sender:isDeaf()))
 	end
 end
-function cmd.padm(ctx)
-	for _,val in ipairs(admins) do
-		print(val)
+function cmd.qia(ctx, args)				--query is admin
+	if admins[args[2]:lower()] then
+		ctx.sender:message(args[2].." is an admin.")
+	else
+		ctx.sender:message(args[2].." is not an admin.")
 	end
 end
 
@@ -716,11 +741,6 @@ client:hook("OnMessage", function(event)
 				sender_name = event.actor:getName(),
 				sender = event.actor,
 				channel = event.actor:getChannel()})
-	end
-	if string.find(msg, "!help", 1) == 1 then
-		event.actor:getChannel():message(
-		"All Users:<br />!help - this menu.<br />!v red - volunteers for red team.<br />!pmh - prints medic history.<br />!rn - Your name backwords<br />!flip - Flip a coin. Everyone in your channel will see the result.<br />!rng x y - A random number between x and y.<br /><br />Admins:<br />!roll - Rolls for 2 medics. Specify '!roll 1' to roll just one.<br />'!fv user1 user2' - Swaps a Medic user1 out for a volunteer, user2.<br />'!dc 1' - Dump subchannels in server 1.<br />!mute/!unmute - mutes everyone but admins and captains, or unmutes them.<br />!ami - Adds medic immunity to a specified user.<br />!strike - removes medic immunity from a specified user.<br />'!fv userout userin' - Replace medic userout with the NEW medic userin.<br />!draftlock - Toggle whether or not people can move to addup."
-		)
 	end
 end)
 
