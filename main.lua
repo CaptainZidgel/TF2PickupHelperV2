@@ -74,7 +74,7 @@ function isAdmin(s)		--s will be the sender of a message, a user obj. we lower t
 	if s:getID() == 0 then
 		return false --user is unregistered!!!!
 	else
-		return admins[s:getName():lower()]
+		if admins[s:getName():lower()] == true then return true else return false end	--we cant settle for just returning nil.
 	end
 end
 
@@ -192,7 +192,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.4.0".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.4.1".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -313,6 +313,11 @@ function cmd.cull(ctx)
 end
 function cmd.roll(ctx, args)
 	if ctx.admin == false then log(ctx.sender_name..' denied roll perms') return end
+	if getlen(addup) < 4 and args[#args] ~= "-f" then
+		ctx.sender:message("I think you're uhh missing a few people there sir. If you believe this is in error, roll like this: | !roll -f or !roll 2 -f | to force a roll despite missing players")
+		log("Roll denied due to insufficient players.")
+		return
+	end
 	draftlock = true
 	log("Draftlock switched to true after roll begins")
 	pugroot:messager("Medics being rolled, draft is locked.")
@@ -656,10 +661,12 @@ function cmd.v(ctx, args)
 				p.imprison = team
 			end
 		else
-			log("Nut City Error code 102")
+			ctx.sender:message("Error 102")
+			log("E102 | Can't volunteer when there are more than 2 people in rooms.")
 		end
 	else
-		log("Nut City Error code 103")
+		ctx.sender:message("Error 103")
+		log("E103 | Can't volunteer from this channel")
 		log(ctx.channel:getName().."*"..ctx.channel:getParent():getName())
 	end
 end
@@ -746,13 +753,11 @@ end)
 
 client:hook("OnUserConnected", function(event)
 	local name = event.user:getName():lower()
-	for i,v in ipairs(warrants) do
-		if v:lower() == name then
-			event.user:ban("The ban hammer has spoken!")
-			log("Banned " .. v .. " due to warrant!")
-			warrants[i] = nil														--remove this warrant
-			return
-		end
+	if warrants[name] == true then
+		event.user:ban("The ban hammer has spoken!")
+		log("Banned " .. name .. " due to warrant!")
+		warrants[i] = nil														--remove this warrant
+		return
 	end
 	log("USER CONNECT: "..event.user:getName())
 	if players[name] == nil then
