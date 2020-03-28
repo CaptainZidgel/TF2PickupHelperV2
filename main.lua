@@ -32,7 +32,7 @@ end
 function write_to_file(t)	--write a table to a csv file with the same name. This is the easiest solution I could think of for my problem. Rather than try and reopen and edit out specific lines from files, I just rewrite the files.
 	local file = io.open(t..'.csv', 'w+')		--"w+" = open the file given (t..'.csv') and write over it (all data lost)
 	for k,v in pairs(_G[t]) do
-		file:write(k..'\n')
+		file:write(k..'\n')										--we write K instead of V because these tables store values in keys.
 	end
 	file:close()
 end
@@ -132,7 +132,7 @@ function roll(t)
 	local c1, c2, c3 = channelTable[1], channelTable[2], channelTable[3]
 	if c1.red.length + c1.blu.length >= 2 then
 	if c2.red.length + c2.blu.length >= 2 then
-	if c3.red.length + c3.blu.length >= 2 then 
+	if c3.red.length + c3.blu.length >= 2 then
 	addup:message("You can't roll, there are already medics.")			
 	log("Someone tried to roll but was denied due to sufficient players.") 
 		return
@@ -192,7 +192,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.4.1".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.4.2".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -472,7 +472,7 @@ end
 function cmd.append(ctx, args)
 	if ctx.admin == false then return end
 	if #args < 3 then ctx.sender:message("Are you missing a parameter?") return end
-	_G[args[2]][args[3]] = true
+	_G[args[2]][args[3]:lower()] = true
 	write_to_file(args[2])
 	log(ctx.sender_name.." committed "..args[3].." to table "..args[2])
 	ctx.sender:message("Added "..args[3].." to table "..args[2])
@@ -480,7 +480,7 @@ end
 function cmd.remove(ctx, args)
 	if ctx.admin == false then return end
 	if #args < 3 then ctx.sender:message("Are you missing a parameter?") return end
-	_G[args[2]][args[3]] = nil
+	_G[args[2]][args[3]:lower()] = nil
 	write_to_file(args[2])
 	log(ctx.sender_name.." removed "..args[3].." from table "..args[2])
 	ctx.sender:message("removed "..args[3].." from table "..args[2])
@@ -490,6 +490,7 @@ end
 			finding an unknown index of a value you do know would involve looping which is a little more involved to write.
 			in our very simple tables, every value is just a string. strings can be keys. If we want to detect and modify the value of a string
 			we could just make the string the key of a meaningless value, then modify the value to identify it as existing or not existing.
+	note: appended and removed things must be lowered in-code to create case insensitivity.	
 	--]]
 function cmd.copy(ctx, args)
 	if ctx.admin == false then return end
@@ -756,7 +757,8 @@ client:hook("OnUserConnected", function(event)
 	if warrants[name] == true then
 		event.user:ban("The ban hammer has spoken!")
 		log("Banned " .. name .. " due to warrant!")
-		warrants[i] = nil														--remove this warrant
+		warrants[name] = nil														--remove this warrant
+		write_to_file(warrants)
 		return
 	end
 	log("USER CONNECT: "..event.user:getName())
