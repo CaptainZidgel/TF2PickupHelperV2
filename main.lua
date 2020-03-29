@@ -192,7 +192,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.4.2".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.4.3".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -731,7 +731,7 @@ function afkexpel(event)		--not a command
 end
 
 --[[==
-LUA-MUMBLE HOOKS						**EXCEPT ON SERVER SYNC AHEMHEM.
+LUA-MUMBLE HOOKS
 	==]]--
 
 client:hook("OnMessage", function(event)
@@ -754,14 +754,6 @@ end)
 
 client:hook("OnUserConnected", function(event)
 	local name = event.user:getName():lower()
-	if warrants[name] == true then
-		event.user:ban("The ban hammer has spoken!")
-		log("Banned " .. name .. " due to warrant!")
-		warrants[name] = nil														--remove this warrant
-		write_to_file(warrants)
-		return
-	end
-	log("USER CONNECT: "..event.user:getName())
 	if players[name] == nil then
 		players[name] = {
 			object = event.user,
@@ -789,6 +781,14 @@ client:hook("OnUserConnected", function(event)
 		end
 		if players[name].imprison then event.user:move(players[name].imprison) end
 	end
+	log("USER CONNECT: "..event.user:getName())
+	if warrants[name] == true then										--warrants are evaluated after the player data is set so that if this is the user's first time connecting under this bot session, it doesn't cause any errors.
+		log("Banned " .. name .. " due to warrant!")
+		event.user:ban("The ban hammer has spoken!")
+		warrants[name] = nil														--remove this warrant
+		write_to_file(warrants)
+		return
+	end
 	if msgen then
 		event.user:message(motd)
 	end
@@ -802,7 +802,7 @@ client:hook("OnUserRemove", function(event)
 	local u = players[event.user:getName():lower()]
 	log("USER DISCO/REM: "..event.user:getName(), false)
 	if event.ban then
-		log(event.user:getName() .. " banned by "..event.actor:getName().." with reason "..event.reason)
+		log("		•" .. event.user:getName() .. " banned by "..event.actor:getName().." with reason "..event.reason)
 	end
 	for _,server in ipairs(channelTable) do
 		for _,room in pairs(server) do
@@ -812,10 +812,6 @@ client:hook("OnUserRemove", function(event)
 			end
 		end
 	end
-	--[[if getlen(root, true) < 2 then				--the world (and the bot) isn't ready yet I guess :(
-		log("Automatically clearing medic history.")
-		clear_medics()
-	end]]--
 end)
 
 client:hook("OnUserChannel", function(event)	
