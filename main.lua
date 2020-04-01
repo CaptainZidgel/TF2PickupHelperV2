@@ -192,7 +192,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.4.3".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.4.4".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -365,14 +365,14 @@ function cmd.dc(ctx, args)
 end
 function cmd.strike(ctx, args)
 	if ctx.admin == false then return end
-	local player = args[2]
+	local player = args[2]:lower()
 	players[player].medicImmunity = false
 	log(ctx.sender_name .. " removes Medic Immunity from " .. player)
 	addup:messager(ctx.sender_name .. " removes " .. player .. "'s medic immunity.", ctx.sender)
 end
 function cmd.ami(ctx, args)
 	if ctx.admin == false then return end
-	local player = args[2]
+	local player = args[2]:lower()
 	players[player].medicImmunity = true
 	log(ctx.sender_name .. " gives medic immunity to " .. player)
 	addup:messager(ctx.sender_name .. " gives " .. player .. " medic immunity.", ctx.sender)
@@ -695,9 +695,8 @@ function cmd.deaf(ctx)
 		ctx.p_data.selfbotdeaf = true
 		log(ctx.sender_name .. " selfbot deafened.")
 	else
-		sender:message("Says here you're actually server deafened. Is this incorrect? Tell Zidgel.")
-		log("Nut City Error 105")
-		log("isDeaf", tostring(sender:isDeaf()))
+		ctx.sender:message("Says here you're actually server deafened. Is this incorrect? Tell Zidgel.")
+		log("E105 | isDeaf?"..tostring(sender:isDeaf()))
 	end
 end
 function cmd.undeaf(ctx)
@@ -706,9 +705,8 @@ function cmd.undeaf(ctx)
 		ctx.p_data.selfbotdeaf = false
 		log(ctx.sender_name .. " selfbot undeafened.")
 	else
-		sender:message("Says here you're not server deafened. Is this incorrect? Tell Zidgel.")
-		log("Nut City Error 106")
-		log("isDeaf", tostring(sender:isDeaf()))
+		ctx.sender:message("Says here you're not server deafened. Is this incorrect? Tell Zidgel.")
+		log("E106 | isDeaf?"..tostring(sender:isDeaf()))
 	end
 end
 function cmd.qia(ctx, args)				--query is admin
@@ -796,7 +794,7 @@ end)
 
 client:hook("OnUserRemove", function(event)
 	if event.user == nil then
-		log("Nut City Error 104: Nil user remove")
+		log("E104: Nil user remove")
 		return --i dont know if this needs to be here but im somehow getting an error that event.user is nil?
 	end
 	local u = players[event.user:getName():lower()]
