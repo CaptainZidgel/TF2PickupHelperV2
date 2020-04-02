@@ -188,7 +188,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.5.0".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.5.1".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -285,11 +285,6 @@ function cmd.cull(ctx)
 end
 function cmd.roll(ctx, args)
 	if ctx.admin == false then log(ctx.sender_name..' denied roll perms') return end
-	if getlen(addup) < 4 and args[#args] ~= "-f" then
-		ctx.sender:message("I think you're uhh missing a few people there. If you believe this is in error, roll like this: | !roll -f or !roll 2 -f | to force a roll despite missing players")
-		log("Roll denied due to insufficient players.")
-		return
-	end
 	draftlock = true
 	log("Draftlock switched to true after roll begins")
 	pugroot:messager("Medics being rolled, draft is locked.")
@@ -299,7 +294,7 @@ function cmd.roll(ctx, args)
 	end
 	generateUsersAlpha()
 	local toRoll
-	if args == nil or args[1] == "-f" then
+	if #args == 0 then
 		toRoll = determine_roll_num()
 		print("No integer specified, rolling *just enough* medics!: "..tostring(toRoll))
 	else	
