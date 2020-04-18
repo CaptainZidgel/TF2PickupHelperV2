@@ -188,7 +188,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.5.1".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.6.0".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -579,45 +579,62 @@ end
 --[[		User Commands		]]--
 function cmd.v(ctx, args)
 	if ctx.channel == addup or ctx.channel == fatkids or ctx.channel == connectlobby or ctx.channel == spacebase then
-		local team = args[1]:lower()
-		local server = args[2]
-		if server ~= nil then
-			server = channelTable[tonumber(server)]
-		else
-			for i,v in ipairs(channelTable) do
-				if v.red.length + v.blu.length < 3 then
-					server = v
-					break
+		local team = args[1]:lower()		
+		if team == "red" or team == "blue" or team == "blu" then --!v red
+			local server = args[2]
+			if server ~= nil then
+				server = channelTable[tonumber(server)]
+			else
+				for i,v in ipairs(channelTable) do
+					if v.red.length + v.blu.length < 3 then
+						server = v
+						break
+					end
 				end
 			end
-		end
-		if server.red.length + server.blu.length < 3 then
-			if team == "red" then
-				team = server.red.object
-			elseif team == "blu" or team == "blue" then
-				team = server.blu.object
+			if server.red.length + server.blu.length < 3 then
+				if team == "red" then
+					team = server.red.object
+				elseif team == "blu" or team == "blue" then
+					team = server.blu.object
+				end
+				for _,user in pairs(team:getUsers()) do
+					if players[user:getName():lower()].volunteered then ctx.sender:message("You can't volunteer, this medic is already a volunteer") return end					
+					players[user:getName():lower()].medicImmunity = false
+					players[user:getName():lower()].captain = false
+					user:move(addup)
+				end
+				ctx.sender:move(team)
+				local p = ctx.p_data				--data of the sender
+				p.medicImmunity = true
+				p.volunteered = true
+				p.captain = true
+				if getlen(team, true) < 1 then
+					log(ctx.sender_name .. " has been imprisoned due to their volunteership.")
+					ctx.sender:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be imprisoned, ask an admin to release you.")
+					p.imprison = team
+				end
+			else																								--rooms full
+				log("E102.1")
+				ctx.sender:message("Sorry, bot says you can't do this!")
 			end
-			for _,user in pairs(team:getUsers()) do
-				if players[user:getName():lower()].volunteered then ctx.sender:message("You can't volunteer, this medic is already a volunteer") return end					
-				players[user:getName():lower()].medicImmunity = false
-				players[user:getName():lower()].captain = false
-				user:move(addup)
-			end
-			ctx.sender:move(team)
-			local p = ctx.p_data				--data of the sender
-			p.medicImmunity = true
-			p.volunteered = true
-			p.captain = true
-			if getlen(team, true) < 1 then
+		else --!v username
+			local recipient = players[args[1]:lower()]
+			if recipient.volunteered then ctx.sender:message("You can't volunteer, this medic is already a volunteer") return end					
+			recipient.medicImmunity = false
+			recipient.captain = false
+			local c = recipient.object:getChannel()
+			recipient.object:move(addup)
+			local gifter = ctx.p_data
+			gifter.volunteered, gifter.captain, gifter.medicImmunity = true, true, true
+			gifter.object:move(c)
+			if getlen(c, true) < 1 then
 				log(ctx.sender_name .. " has been imprisoned due to their volunteership.")
 				ctx.sender:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be imprisoned, ask an admin to release you.")
-				p.imprison = team
+				gifter.imprison = c
 			end
-		else
-			ctx.sender:message("Error 102")
-			log("E102 | Can't volunteer when there are more than 2 people in rooms.")
 		end
-	else
+	else						--bad channel
 		ctx.sender:message("Error 103")
 		log("E103 | Can't volunteer from this channel")
 		log(ctx.channel:getName().."*"..ctx.channel:getParent():getName())
