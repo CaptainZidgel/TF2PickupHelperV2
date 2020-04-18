@@ -188,7 +188,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.6.0".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.6.1".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -620,6 +620,10 @@ function cmd.v(ctx, args)
 			end
 		else --!v username
 			local recipient = players[args[1]:lower()]
+			if recipient == nil then
+				ctx.sender:message("Hey, that's not a user I recognize. Did you spell it right?")
+				return
+			end
 			if recipient.volunteered then ctx.sender:message("You can't volunteer, this medic is already a volunteer") return end					
 			recipient.medicImmunity = false
 			recipient.captain = false
