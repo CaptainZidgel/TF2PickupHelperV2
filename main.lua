@@ -52,7 +52,7 @@ function isMac(s)	--s will be a name only, not a user object
 	end
 end
 
-local client, err = assert(mumble.connect("voice.nut.city", 42069, "adv.pem", "adv.key"))
+local client, err = assert(mumble.connect("voice.nut.city", 42069, "marty.pem", "marty.key"))
 if err ~= nil then
 	log(err, true)
 end
@@ -188,7 +188,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.6.1".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.6.2".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	joe = event.user
@@ -624,7 +624,22 @@ function cmd.v(ctx, args)
 				ctx.sender:message("Hey, that's not a user I recognize. Did you spell it right?")
 				return
 			end
-			if recipient.volunteered then ctx.sender:message("You can't volunteer, this medic is already a volunteer") return end					
+			if args[1]:lower() == ctx.sender_name:lower() then
+				ctx.sender:message("You can't do that!")
+				return
+			end
+			if recipient.medicImmunity == false then
+				ctx.sender:message("This person has to have been rolled on medic to be volunteered for.")
+				return
+			end
+			if recipient.volunteered then
+				ctx.sender:message("You can't volunteer, this medic is already a volunteer") 
+				return 
+			end		
+			if string.find(recipient.object:getChannel():getParent():getName(), "Pug Server %d") == nil then
+				ctx.sender:message("This can't be done, the person you're trying to volunteer for isn't even in a pug server!")
+				return
+			end			
 			recipient.medicImmunity = false
 			recipient.captain = false
 			local c = recipient.object:getChannel()
@@ -632,6 +647,7 @@ function cmd.v(ctx, args)
 			local gifter = ctx.p_data
 			gifter.volunteered, gifter.captain, gifter.medicImmunity = true, true, true
 			gifter.object:move(c)
+			log(ctx.sender_name .. " has volunteered for " .. args[1] .. " successfully")
 			if getlen(c, true) < 1 then
 				log(ctx.sender_name .. " has been imprisoned due to their volunteership.")
 				ctx.sender:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be imprisoned, ask an admin to release you.")
