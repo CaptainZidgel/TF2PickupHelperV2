@@ -188,9 +188,10 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.6.2".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.7.0".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
+	discord_link = ""
 	joe = event.user
 	root = joe:getChannel():getParent():getParent()
 	spacebase = find("Inhouse Pugs (Nut City)", "Poopy Joes Space Base")
@@ -322,6 +323,13 @@ function cmd.dc(ctx, args)
 		for _,user in pairs(room:getUsers()) do
 			user:move(addup)
 			players[user:getName():lower()].imprison = false
+			if warrants[name] == true then										--warrants are evaluated after the player data is set so that if this is the user's first time connecting under this bot session, it doesn't cause any errors.
+				log("Banned " .. name .. " due to warrant!")
+				event.user:ban("The ban hammer has spoken!")
+				warrants[name] = nil														--remove this warrant
+				write_to_file(warrants)
+				return
+			end
 		end
 	end
 	addup:messager("Channel "..cnl.." dumped by "..ctx.sender_name)
@@ -576,6 +584,11 @@ function cmd.dpr(ctx, args)
 	players[args[1]].imprison = false
 	log("Released from prison: "..args[1])
 end
+function cmd.setdiscord(ctx, args)
+	if ctx.admin == false then return end
+	discord_link = args[1]
+	ctx.sender:message("Successfuly set Discord link to:"..discord_link)
+end
 --[[		User Commands		]]--
 function cmd.v(ctx, args)
 	if ctx.channel == addup or ctx.channel == fatkids or ctx.channel == connectlobby or ctx.channel == spacebase then
@@ -703,6 +716,14 @@ function cmd.qia(ctx, args)				--query is admin
 		ctx.sender:message(args[1].." is an admin.")
 	else
 		ctx.sender:message(args[1].." is not an admin.")
+	end
+end
+function cmd.discord(ctx, args)
+	if ctx.sender:getID() ~= 0 then
+		ctx.sender:message(discord_link)
+		log(ctx.sender_name .. " got the discord link.")
+	else
+		ctx.sender:message("Please have an admin register you so I can trust you with the discord link!")
 	end
 end
 
