@@ -44,6 +44,8 @@ channelTable = {}
 usersAlpha = {}
 players = {}
 
+cstrings = {}
+
 function isMac(s)	--s will be a name only, not a user object
 	for _,v in ipairs(macadamias) do
 		if v:lower() == s:lower() and players[s:lower()].object:getID() ~= 0 then --0 means unregistered
@@ -188,7 +190,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.7.0".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.8.0".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	discord_link = ""
@@ -197,7 +199,6 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	spacebase = find("Inhouse Pugs (Nut City)", "Poopy Joes Space Base")
 	connectlobby = find("Inhouse Pugs (Nut City)", "Connection Lobby")
 	addup = find("Inhouse Pugs (Nut City)", "Add Up")
-	fatkids = find("Add Up", "Fat Kids")
 	notplaying = find("Add Up", "Chill Room (Not Playing)")
 	pugroot = find("Nut City Limits", "Inhouse Pugs (Nut City)")
 	joe:move(spacebase)
@@ -589,9 +590,38 @@ function cmd.setdiscord(ctx, args)
 	discord_link = args[1]
 	ctx.sender:message("Successfuly set Discord link to:"..discord_link)
 end
+function cmd.setconnect(ctx, args)
+	if ctx.admin == false then return end
+	--!setconnect 2 connect server:port;password PASSwOrD
+	local channel = find("Add Up", "Pug Server "..args[1])
+	local ip = string.match(args[3], '[^;]+')
+	local pass = args[4]
+	channel:setDescription(string.format(
+	[[<a href="steam://connect/%s/%s"><b><span style="color:#ff0004">Connect To Pug Server %s</span></b></a> 
+<p style="margin-bottom:12px; margin-top:12px">connect %s;password %s</p>]]
+	, ip, pass, args[1], ip, pass))
+	cstrings[tonumber(args[1])] = args[2].." "..args[3].." "..args[4]
+	channel:messager(string.format("Connect for server %s is now: %s", args[1], cstrings[args[1]]))
+	addup:messager(string.format("Connect for server %s is now: %s", args[1], cstrings[args[1]]))
+	log(ctx.sender_name .. " changed connect info on server " .. args[1])
+end
 --[[		User Commands		]]--
+function cmd.connect(ctx, args)
+	if args[1] then
+		local channel = find("Add Up", "Pug Server "..args[1])
+		local cstring = cstrings[tonumber(args[1])]
+		if not cstring then
+			ctx.sender:message("Can't find the connect info... I'm a bad robot!")
+			return
+		end
+		if ctx then ctx.sender:message(cstring) end
+	else
+		ctx.channel:message("Connect for server is: "..cstrings[tonumber(ctx.sender:getChannel():getParent():getName():match("%d+"))])
+	end
+	return cstring
+end
 function cmd.v(ctx, args)
-	if ctx.channel == addup or ctx.channel == fatkids or ctx.channel == connectlobby or ctx.channel == spacebase then
+	if ctx.channel == addup or ctx.channel == connectlobby or ctx.channel == spacebase then
 		local team = args[1]:lower()		
 		if team == "red" or team == "blue" or team == "blu" then --!v red
 			local server = args[2]
@@ -834,7 +864,7 @@ client:hook("OnUserChannel", function(event)
 		event.user:move(players[event.user:getName():lower()].imprison)
 		return
 	end
-	if dle and draftlock and (event.to == addup or event.to == fatkids) and (event.from == connectlobby or event.from == notplaying) and not isAdmin(event.actor) then
+	if dle and draftlock and (event.to == addup) and (event.from == connectlobby or event.from == notplaying) and not isAdmin(event.actor) then
 			--using if event.from == connectlobby will exclude people moving in from other channels, like game channels or general, but thats a rare use case
 			if event.actor ~= event.user then
 				log(event.user:getName() .. " moved by " .. event.actor:getName() .. " from " .. event.from:getName() .. " to " .. event.to:getName())
