@@ -1,5 +1,5 @@
 local mumble = require "mumble"
-local inspect = require "inspect"
+--local inspect = require "inspect"
 
 function getTime() --the library has mumble.gettime() but that only returns ms
 	local _time = os.date('*t')
@@ -20,19 +20,29 @@ end
 
 function file_exists(file) local f = io.open(file, "r") if f ~= nil then io.close(f) return true else return false end end	--https://stackoverflow.com/questions/4990990/check-if-a-file-exists-with-lua
 
-function qlines(file)				--q[uickly read]lines and return their contents.
+function qlines(file, complex)				--q[uickly read]lines and return their contents.
 	if file_exists(file) == false then log("Attempting to read file which doesn't exist, returning empty table") return {} end
 	local output = {}
 	for line in io.lines(file) do
-		if not line:find("%s") then output[line:lower()] = true end	--skips blank lines
+
+			if not complex then
+				output[line:lower()] = true 
+			else
+				string.gsub(line, "(%S+)%s(%d)", function(name, digit) output[name] = tonumber(digit) end) 
+			end
+		
 	end
 	return output
 end
 
-function write_to_file(t)	--write a table to a csv file with the same name. This is the easiest solution I could think of for my problem. Rather than try and reopen and edit out specific lines from files, I just rewrite the files.
+function write_to_file(t, complex)	--write a table to a csv file with the same name. This is the easiest solution I could think of for my problem. Rather than try and reopen and edit out specific lines from files, I just rewrite the files.
 	local file = io.open(t..'.csv', 'w+')		--"w+" = open the file given (t..'.csv') and write over it (all data lost)
 	for k,v in pairs(_G[t]) do
-		file:write(k..'\n')										--we write K instead of V because these tables store values in keys.
+		if not complex then
+			file:write(k..'\n')										--we write K instead of V because these tables store values in keys.
+		else
+			file:write(string.format("%s %d\n", k, v))
+		end
 	end
 	file:close()
 end
@@ -40,6 +50,7 @@ end
 macadamias = qlines("mi.csv")
 admins = qlines("admins.csv")
 warrants = qlines("warrants.csv")
+purgatory = qlines("purgatory.csv", true)
 channelTable = {}
 usersAlpha = {}
 players = {}
@@ -129,6 +140,7 @@ end
 
 function roll(t)
 	log("Trying to get a new medic pick")
+	print("- Determing if possible")
 	local i = 1
 	local userTesting
 	local loop_through_channels = 0
@@ -143,6 +155,21 @@ function roll(t)
 					return
 		end
 	end
+	print("- Checking purgatory")
+	for _,player in pairs(addup:getUsers()) do
+		local pm = player:getName():lower()
+		if purgatory[pm] and players[pm].volunteered == false then	--here, volunteered takes on the role of checking if a person has been moved.
+			userTesting = pm
+			purgatory[pm] = purgatory[pm] - 1
+			if purgatory[pm] == 0 then
+				purgatory[pm] = nil
+			end
+			players[pm].volunteered = true
+			write_to_file('purgatory', true)
+			goto skipsearch
+		end
+	end
+	print("- Searching addup")
 	while i <= getlen(addup) + 1 do
 		if i > getlen(addup) then
 			log("Run out of people to test.")
@@ -159,6 +186,7 @@ function roll(t)
 			end
 		end
 	end
+	::skipsearch::
 	log("Selecting medic: " .. userTesting)
 	addup:messager("Medic: " .. userTesting)
 	local user = players[userTesting]
@@ -190,7 +218,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.8.0".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.9.0".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	discord_link = ""
@@ -277,7 +305,7 @@ end
 --						--
 function cmd.cull(ctx)
 	if ctx.admin == false then return end
-	pugroot:messager("Deafened users are being moved to chill room! Blame "..ctx.sender)
+	pugroot:messager("Deafened users are being moved to chill room! Blame "..ctx.sender_name)
 	for _,user in pairs(addup:getUsers()) do
 		if user:isSelfDeaf() then
 			user:move(notplaying)
@@ -294,7 +322,6 @@ function cmd.roll(ctx, args)
 		u.captain = false
 		u.volunteered = false
 	end
-	generateUsersAlpha()
 	local toRoll
 	if #args == 0 then
 		toRoll = determine_roll_num()
@@ -304,6 +331,7 @@ function cmd.roll(ctx, args)
 		print("Rolling "..args[1].." medics as specified by user")
 	end
 	while toRoll > 0 do
+		generateUsersAlpha()
 		roll(randomTable(getlen(addup)))
 		toRoll = toRoll - 1
 	end
@@ -386,7 +414,7 @@ function cmd.unlink(ctx, args)
 	addup:unlink(blu, red)
 	blu:unlink(red)
 	draftlock = false
-	log("Draftlock switched to false in accordance with unlink, DLE IS: "..tostring(dle))
+	log("Draftlock -> false. reason: unlink, DLE = "..tostring(dle))
 	log("Server " .. args[1] .. " subchannels unlinked by " .. ctx.sender_name)
 end
 function cmd.mute(ctx, args)
@@ -605,6 +633,14 @@ function cmd.setconnect(ctx, args)
 	addup:messager(string.format("Connect for server %s is now: %s", args[1], cstrings[args[1]]))
 	log(ctx.sender_name .. " changed connect info on server " .. args[1])
 end
+function cmd.purg(ctx, args)
+	if ctx.admin == false then return end
+	local t = tonumber(args[2]) or 3
+	if t == 0 then t = nil end
+	purgatory[args[1]:lower()] = t
+	log(string.format("%s set %s 's medic purgatory length to %i", ctx.sender_name, args[1], t))
+	write_to_file('purgatory', true)
+end
 --[[		User Commands		]]--
 function cmd.connect(ctx, args)
 	if args[1] then
@@ -754,6 +790,13 @@ function cmd.discord(ctx, args)
 		log(ctx.sender_name .. " got the discord link.")
 	else
 		ctx.sender:message("Please have an admin register you so I can trust you with the discord link!")
+	end
+end
+function cmd.purgstatus(ctx, args)
+	if purgatory[ctx.sender_name:lower()] then
+		ctx.sender:message(string.format("You must suffer %d more medic pug(s)!", purgatory[ctx.sender_name:lower()]))
+	else
+		ctx.sender:message("You have no purgatory!")
 	end
 end
 
