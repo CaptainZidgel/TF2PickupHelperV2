@@ -47,7 +47,7 @@ function write_to_file(t, complex)	--write a table to a csv file with the same n
 	file:close()
 end
 
-macadamias = qlines("mi.csv")
+macadamias = qlines("macadamias.csv")
 admins = qlines("admins.csv")
 warrants = qlines("warrants.csv")
 purgatory = qlines("purgatory.csv", true)
@@ -945,7 +945,4 @@ client:hook("OnError", function(error_)		--I don't know why I'm using the unders
 	end
 end)
 
-while client:isConnected() do
-	client:update()
-	mumble.sleep(0.01)
-end
+mumble.loop()
