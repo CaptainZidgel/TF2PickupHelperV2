@@ -58,11 +58,7 @@ players = {}
 cstrings = {}
 
 function isMac(s)	--s will be a name only, not a user object
-	for _,v in ipairs(macadamias) do
-		if v:lower() == s:lower() and players[s:lower()].object:getID() ~= 0 then --0 means unregistered
-			return true
-		end
-	end
+	if macadamias[s:getName():lower] == true then return true else return false end
 end
 
 local client, err = assert(mumble.connect("voice.nut.city", 42069, "marty.pem", "marty.key"))
@@ -218,7 +214,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.9.0".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.9.1".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	discord_link = ""
@@ -243,13 +239,9 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 			channelB = v:getChannel(),
 			selfbotdeaf = false,
 			perma_mute = false,
-			imprison = false
+			imprison = false,
+			medicImmunity = isMac(u)
 		}
-		if isMac(u) then
-			players[u].medicImmunity = true
-		else
-			players[u].medicImmunity = false
-		end
 	end
 	channelTable = {}
 	for _,channel in pairs(client:getChannels()) do
@@ -382,12 +374,10 @@ function cmd.ami(ctx, args)
 end
 function cmd.clearmh(ctx)
 	if ctx.admin == false then return end
-	for _,v in pairs(players) do
-		if not isMac(k) then
-			v.medicImmunity = false
-			v.captain = false
-			v.volunteered = false
-		end
+	for k,v in pairs(players) do
+		v.medicImmunity = isMac(k:lower())
+		v.captain = false
+		v.volunteered = false
 	end
 	addup:messager(ctx.sender_name .. " reset medic history.")
 	log(ctx.sender_name .. " cleared medic history.")
@@ -811,9 +801,7 @@ function afkexpel(event)		--not a command
 	end
 end
 
---[[==
-LUA-MUMBLE HOOKS
-	==]]--
+--[[LUA-MUMBLE HOOKS]]--
 
 client:hook("OnMessage", function(event)
 	--[[
@@ -845,13 +833,9 @@ client:hook("OnUserConnected", function(event)
 			dontUpdate = false,
 			selfbotdeaf = false,
 			perma_mute = false,
-			imprison = false
+			imprison = false,
+			medicImmunity = isMac(name)
 		}
-		if isMac(event.user:getName()) then
-			players[name].medicImmunity = true
-		else
-			players[name].medicImmunity = false
-		end
 	else
 		players[name].object = event.user
 		players[name].volunteered = false
