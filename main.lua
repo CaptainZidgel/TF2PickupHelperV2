@@ -57,8 +57,8 @@ players = {}
 
 cstrings = {}
 
-function isMac(s)	--s will be a name only, not a user object
-	if macadamias[s:getName():lower] == true then return true else return false end
+function isMac(s)	--s will be a user object
+	if macadamias[s:getName():lower()] == true then return true else return false end
 end
 
 local client, err = assert(mumble.connect("voice.nut.city", 42069, "marty.pem", "marty.key"))
@@ -214,7 +214,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.9.1".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.9.2".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	discord_link = ""
@@ -240,7 +240,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 			selfbotdeaf = false,
 			perma_mute = false,
 			imprison = false,
-			medicImmunity = isMac(u)
+			medicImmunity = isMac(v)
 		}
 	end
 	channelTable = {}
@@ -375,7 +375,7 @@ end
 function cmd.clearmh(ctx)
 	if ctx.admin == false then return end
 	for k,v in pairs(players) do
-		v.medicImmunity = isMac(k:lower())
+		v.medicImmunity = isMac(v.object:getName():lower())
 		v.captain = false
 		v.volunteered = false
 	end
@@ -834,7 +834,7 @@ client:hook("OnUserConnected", function(event)
 			selfbotdeaf = false,
 			perma_mute = false,
 			imprison = false,
-			medicImmunity = isMac(name)
+			medicImmunity = isMac(event.user)
 		}
 	else
 		players[name].object = event.user
