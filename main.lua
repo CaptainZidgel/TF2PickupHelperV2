@@ -134,7 +134,7 @@ function determine_roll_num()
 	end
 end
 
-function roll(t)
+function roll(t, bottom_up)
 	log("Trying to get a new medic pick")
 	print("- Determing if possible")
 	local i = 1
@@ -146,9 +146,9 @@ function roll(t)
 			break
 		end
 		if loop_through_channels >= #channelTable then
-					addup:messager("You can't roll, all channels are full.")
-					log("Someone tried to roll, was denied due to sufficient medics.")
-					return
+				addup:messager("You can't roll, all channels are full.")
+				log("Someone tried to roll, was denied due to sufficient medics.")
+				return
 		end
 	end
 	print("- Checking purgatory")
@@ -162,6 +162,7 @@ function roll(t)
 			end
 			players[pm].volunteered = true
 			write_to_file('purgatory', true)
+			log("Enforcing purgatory: " .. userTesting)
 			goto skipsearch
 		end
 	end
@@ -169,7 +170,7 @@ function roll(t)
 	while i <= getlen(addup) + 1 do
 		if i > getlen(addup) then
 			log("Run out of people to test.")
-			addup:messager("Everyone here has played Medic.")
+			pugroot:messager("Everyone here has played Medic. The admin must !clearmh")
 			return
 		else
 			userTesting = usersAlpha[t[i]]
@@ -183,11 +184,17 @@ function roll(t)
 		end
 	end
 	::skipsearch::
-	log("Selecting medic: " .. userTesting)
 	addup:messager("Medic: " .. userTesting)
 	local user = players[userTesting]
 	local red, blu
-	for _,server in ipairs(channelTable) do
+	local start, stop, iter
+	if bottom_up then
+		start, stop, iter = #channelTable, 1, -1
+	else
+		start, stop, iter = 1, #channelTable, 1
+	end
+	for i = start, stop, iter do
+		local server = channelTable[i]
 		if server.red.length + server.blu.length < 2 then
 			red, blu = server.red, server.blu
 			break
@@ -214,7 +221,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.9.2".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.10.0".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	discord_link = ""
@@ -306,6 +313,7 @@ function cmd.cull(ctx)
 	log("Deafened users culled")
 end
 function cmd.roll(ctx, args)
+	local bottom_up = false
 	if ctx.admin == false then log(ctx.sender_name..' denied roll perms') return end
 	draftlock = true
 	log("Draftlock switched to true after roll begins")
@@ -315,16 +323,19 @@ function cmd.roll(ctx, args)
 		u.volunteered = false
 	end
 	local toRoll
-	if #args == 0 then
+	if #args == 0 or args[1] == "-b" then
 		toRoll = determine_roll_num()
 		print("No integer specified, rolling *just enough* medics!: "..tostring(toRoll))
 	else	
 		toRoll = tonumber(args[1])
 		print("Rolling "..args[1].." medics as specified by user")
 	end
+	if args[#args] == "-b" then
+		bottom_up = true
+	end
 	while toRoll > 0 do
 		generateUsersAlpha()
-		roll(randomTable(getlen(addup)))
+		roll(randomTable(getlen(addup)), bottom_up)
 		toRoll = toRoll - 1
 	end
 end
@@ -603,11 +614,6 @@ function cmd.dpr(ctx, args)
 	players[args[1]].imprison = false
 	log("Released from prison: "..args[1])
 end
-function cmd.setdiscord(ctx, args)
-	if ctx.admin == false then return end
-	discord_link = args[1]
-	ctx.sender:message("Successfuly set Discord link to:"..discord_link)
-end
 function cmd.setconnect(ctx, args)
 	if ctx.admin == false then return end
 	--!setconnect 2 connect server:port;password PASSwOrD
@@ -748,14 +754,9 @@ function cmd.rng(ctx, args)
 	ctx.sender:message(tostring(math.random(tonumber(args[1]), tonumber(args[2]))))
 end
 function cmd.deaf(ctx)
-	if ctx.p_data.selfbotdeaf == false then
-		ctx.sender:setDeaf(true)
-		ctx.p_data.selfbotdeaf = true
-		log(ctx.sender_name .. " selfbot deafened.")
-	else
-		ctx.sender:message("Says here you're actually server deafened. This normally happens if the admins do not properly undeafen you via the bot when you've been deafened via the bot. Use the command !undeaf to fix this.")
-		log("E105 | isDeaf?"..tostring(sender:isDeaf()))
-	end
+	ctx.sender:setDeaf(true)
+	ctx.p_data.selfbotdeaf = true
+	log(ctx.sender_name .. " selfbot deafened.")
 end
 function cmd.undeaf(ctx)
 	if ctx.p_data.selfbotdeaf == true then
@@ -763,8 +764,8 @@ function cmd.undeaf(ctx)
 		ctx.p_data.selfbotdeaf = false
 		log(ctx.sender_name .. " selfbot undeafened.")
 	else
-		ctx.sender:message("Says here you're not server deafened.")
-		log("E106 | isDeaf?"..tostring(sender:isDeaf()))
+		ctx.sender:message("Says here you're not server deafened. Try doing !deaf then !undeaf")
+		log("E106 | isDeaf?"..tostring(ctx.sender:isDeaf()))
 	end
 end
 function cmd.qia(ctx, args)				--query is admin
@@ -774,19 +775,18 @@ function cmd.qia(ctx, args)				--query is admin
 		ctx.sender:message(args[1].." is not an admin.")
 	end
 end
-function cmd.discord(ctx, args)
-	if ctx.sender:getID() ~= 0 then
-		ctx.sender:message(discord_link)
-		log(ctx.sender_name .. " got the discord link.")
-	else
-		ctx.sender:message("Please have an admin register you so I can trust you with the discord link!")
-	end
-end
 function cmd.purgstatus(ctx, args)
 	if purgatory[ctx.sender_name:lower()] then
 		ctx.sender:message(string.format("You must suffer %d more medic pug(s)!", purgatory[ctx.sender_name:lower()]))
 	else
 		ctx.sender:message("You have no purgatory!")
+	end
+end
+function cmd.doihaveimmunity(ctx, args)
+	if ctx.p_data.medicImmunity then
+		ctx.sender:message("You have immunity!")
+	else
+		ctx.sender:message("You don't have immunity!")
 	end
 end
 
