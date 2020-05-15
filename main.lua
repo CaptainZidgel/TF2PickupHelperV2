@@ -221,7 +221,7 @@ client:hook("OnServerSync", function(event)	--this is where the initialization h
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log("===========================================", false)
-	log("Newly connected, Syncd as "..event.user:getName().." v3.10.0".." on ".. _date)
+	log("Newly connected, Syncd as "..event.user:getName().." v3.10.1".." on ".. _date)
 	log("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	discord_link = ""
@@ -386,7 +386,7 @@ end
 function cmd.clearmh(ctx)
 	if ctx.admin == false then return end
 	for k,v in pairs(players) do
-		v.medicImmunity = isMac(v.object:getName():lower())
+		v.medicImmunity = isMac(v.object)
 		v.captain = false
 		v.volunteered = false
 	end
