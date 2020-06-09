@@ -53,8 +53,8 @@ If `player` provided: Check if player is AFK. If they are, move them.
 `mund`  
 If anyone is server deafened through the bot, undeafen them.
 
-`draftlock`  
-Toggle draftlock
+`draftlock` *bool*  
+If `bool` is included, set draftlock to that bool (true/false). If not included, toggle draftlock to whatever it isn't.
 
 ##### Pug Pool Irrelevant
 
@@ -88,8 +88,11 @@ Add value to a global table.
 `remove` table value  
 Remove value from table.
 
-`sync`  
+`sync` thing  
+`thing` can be `channels`, `users`, or `admins`.
 Synchronize pug channels - use this if you add or remove a pug server.
+Synchronize users - use this if you rename users
+Synchronize admins - use this if you give mod powers to someone.
 
 `toggle` val  
 `val` can be motd or dle. dle is draftlock's oversight. If dle is toggled off, draftlock will never happen.  
@@ -101,7 +104,3 @@ Assign/unassign medic purgatory.
 **Args:**  
 `player` - the player to change.  
 `num` - defaults to 3 - can be any number. 0 will clear purgatory.
-
-`updateadmins`  
-Updates bot's admins based on the Mumble's ACL moderator/admin groups
-

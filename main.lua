@@ -247,7 +247,7 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log.info("===========================================", false)
-	log.info("Connected, Syncd as "..joe:getName().." v4.0.0".." on ".. _date)
+	log.info("Connected, Syncd as "..joe:getName().." v4.0.1".." on ".. _date)
 	log.info("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	------------------------------------------------
@@ -259,14 +259,16 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 		root = pugroot:get("./Pool 1"),
 		connectlobby = pugroot:get("./Inhouse Pugs/Pool 1/Connection Lobby"),
 		addup = pugroot:get("./Pool 1/Add Up"),
-		notplaying = pugroot:get("./Pool 1/Add Up/Chill Room (Not Playing)")
+		notplaying = pugroot:get("./Pool 1/Add Up/Chill Room (Not Playing)"),
+		draftlock = false
 	}
 	------------ok jr pugs now----------------------
 	jrNamed = {
 		root = pugroot:get("./Pool 2"),
 		connectlobby = pugroot:get("./Pool 2/Entrance"),
 		addup = pugroot:get("./Pool 2/Add Up"),
-		notplaying = pugroot:get("./Pool 2/Add Up/Not Playing")
+		notplaying = pugroot:get("./Pool 2/Add Up/Not Playing"),
+		draftlock = false
 	}
 	------------------------------------------------
 	joe:move(spacebase)
@@ -287,7 +289,6 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	end
 	jrNamed.pugs = load_channels(jrNamed.addup)
 	advNamed.pugs = load_channels(advNamed.addup)
-	draftlock = false
 	dle = true
 end)
 
@@ -319,7 +320,7 @@ function cmd.roll(ctx, args, flags)
 	if ctx.admin == false then return -1 end
 	local bottom_up = false
 	local ns = flags["newb"] and jrNamed or advNamed
-	draftlock = true
+	ns.draftlock = true
 	log.info("Draftlock switched to true after roll begins")
 	ns.root:messager("Medics being rolled, draft is locked.")
 	local toRoll
@@ -355,14 +356,14 @@ function cmd.unlink(ctx, args, flags)
 	local red, blu = server.red.object, server.blu.object
 	ns.addup:unlink(blu, red)
 	blu:unlink(red)
-	draftlock = false
-	log.info("Draftlock -> false. reason: unlink, DLE = "..tostring(dle))
+	ns.draftlock = false
+	log.info("Draftlock -> false. reason: unlink)
 	log.info("Server " .. args[1] .. " subchannels unlinked by " .. ctx.sender_name)
 end
 function cmd.dc(ctx, args, flags)
 	if ctx.admin == false then return -1 end
 	local ns = flags["newb"] and jrNamed or advNamed
-	draftlock = false
+	ns.draftlock = false
 	if dle then log.info("Draftlock switched to false after channel dump") end
 	local cnl = tonumber(args[1])
 	local server = ns.pugs[cnl]
@@ -456,7 +457,8 @@ function cmd.mund(ctx)
 	for _,user in pairs(client:getUsers()) do
 		local p = players[user:getName():lower()]
 		if p.selfbotdeaf then
-			user:setDeaf(false)
+			user:setServerDeafened(false)
+			user:setServerMuted(false)
 			p.selfbotdeaf = false
 			table.insert(t, user:getName())
 		end
@@ -508,8 +510,10 @@ function cmd.remove(ctx, args)
 	log.info(ctx.sender_name.." removed "..args[2].." from table "..args[1])
 	ctx.sender:message("removed "..args[2].." from table "..args[1])
 end
-function cmd.draftlock(ctx, args)
+function cmd.draftlock(ctx, args, flags)
 	if ctx.admin == false then return -1 end
+	local ns = flags["newb"] and jrNamed or advNamed
+	local draftlock = ns.draftlock
 	if #args == 0 then 
 		draftlock = not draftlock
 	elseif args[1] == "true" then
@@ -522,12 +526,26 @@ function cmd.draftlock(ctx, args)
 	if dle then pugroot:messager(ctx.sender_name .. " toggled draftlock to " .. tostring(draftlock)) end
 	log.info(ctx.sender_name .. " toggled draft lock to " .. tostring(draftlock))
 end
-function cmd.sync(ctx)
+function cmd.sync(ctx, args)
 	if ctx.admin == false then return -1 end
-	jrNamed.pugs = load_channels(jrNamed.addup)
-	advNamed.pugs = load_channels(advNamed.addup)
-	ctx.sender:message("Sync'd channels")
-	log.info("Updated channels.")
+	if args[1] == "tables" then
+		jrNamed.pugs = load_channels(jrNamed.addup)
+		advNamed.pugs = load_channels(advNamed.addup)
+		ctx.sender:message("Sync'd channels")
+		log.info("Updated channels.")
+	elseif args[1] == "users" then
+		local _players = {}
+		for _,data in pairs(players) do
+			local obj = data.object
+			_players[obj:getName():lower()] = data
+		end
+		players = _players
+		ctx.sender:message("Syncd users")
+		log.info("Updated users")
+	elseif args[1] == "admins" then
+		client:requestACL()
+		ctx.sender:message("Alright, I've just updated the admins.")
+	end
 end
 function cmd.toggle(ctx, args, flags)
 	if ctx.admin == false then return -1 end
@@ -536,7 +554,6 @@ function cmd.toggle(ctx, args, flags)
 		ctx.sender:message("The draftlock system is now..")
 		if dle then
 			ctx.sender:message("On.")
-			ctx.sender:message("Draftlocked?: "..tostring(draftlock))
 		else
 			ctx.sender:message("Off.")
 		end
@@ -559,11 +576,6 @@ function cmd.purg(ctx, args)
 	purgatory[args[1]:lower()] = t
 	log.info(string.format("%s set %s 's medic purgatory length to %i", ctx.sender_name, args[1], t))
 	write_to_file('purgatory', true)
-end
-function cmd.updateadmins(ctx, args)
-	if ctx.admin == false then return -1 end
-	client:requestACL()
-	ctx.sender:message("Alright, I've just updated the admins.")
 end
 --[[Plebians]]--
 function cmd.pmh(ctx, args, flags)
@@ -674,6 +686,7 @@ end
 function cmd.undeaf(ctx)
 	if ctx.p_data.selfbotdeaf == true then
 		ctx.sender:setServerDeafened(false)
+		ctx.sender:setServerMuted(false)
 		ctx.p_data.selfbotdeaf = false
 		log.info(ctx.sender_name .. " selfbot undeafened.")
 	else
@@ -797,7 +810,7 @@ client:hook("OnUserChannel", "When someone changes channel", function(client, ev
 		event.user:move(players[event.user:getName():lower()].imprison)
 		return
 	end
-	if dle and draftlock and (event.to == addup) and not isAdmin(event.actor) then
+	if dle and ns.draftlock and (event.to == addup) and not isAdmin(event.actor) then
 		if event.actor ~= event.user then
 			log.info(event.user:getName() .. " moved by " .. event.actor:getName() .. " from " .. event.from:getName() .. " to " .. event.to:getName())
 		end
