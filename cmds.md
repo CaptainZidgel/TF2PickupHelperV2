@@ -5,6 +5,7 @@ Arguments in italics are optional. All flags are optional.
 ## User Commands
 `pmh`  
 Print medic history  
+Include flag `-me` to only print your immunity status.  
 
 `v` player  
 Volunteer to be medic in place of `player`  
@@ -89,9 +90,8 @@ Add value to a global table.
 Remove value from table.
 
 `sync` thing  
-`thing` can be `channels`, `users`, or `admins`.
-Synchronize pug channels - use this if you add or remove a pug server.
-Synchronize users - use this if you rename users
+`thing` can be `channels` or `admins`.
+Synchronize channels - use this if you add or remove a pug server.
 Synchronize admins - use this if you give mod powers to someone.
 
 `toggle` val  

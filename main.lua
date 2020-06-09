@@ -10,10 +10,10 @@ local conn = require("connect")
 local params = {
 	mode = "client",
 	protocol = "sslv23",
-	key = "config/bot.key",
-	certificate = "config/bot.pem"
+	key = conn.key,
+	certificate = conn.pem
 }
-local client = mumble.getClient(conn.ip, conn.port, params)
+local client, err = mumble.getClient(conn.ip, conn.port, params)
 if not client then return end
 client:auth("2Poopy2Joe")
 --------------------------------------Extra funcs needed for use inside and outside of commands
@@ -60,10 +60,10 @@ function find()
 
 end
 
-function channel:messager(m) --self=channel, m=message | SEND RECURSIVELY
-	self:message(m)
+function channel:messager(m, ...) --self=channel, m=message | SEND RECURSIVELY
+	self:message(m, ...)
 	for _,channels in pairs(self:getChildren()) do
-		channels:messager(m)
+		channels:messager(m, ...)
 	end
 end
 
@@ -247,7 +247,7 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log.info("===========================================", false)
-	log.info("Connected, Syncd as "..joe:getName().." v4.0.1".." on ".. _date)
+	log.info("Connected, Syncd as %q v4.0.1 on %s", joe:getName() ,_date)
 	log.info("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	------------------------------------------------
@@ -257,7 +257,7 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	------------------------------------------------"advanced" pugs (advanced to distinguish from junior)
 	advNamed = {
 		root = pugroot:get("./Pool 1"),
-		connectlobby = pugroot:get("./Inhouse Pugs/Pool 1/Connection Lobby"),
+		connectlobby = pugroot:get("./Pool 1/Connection Lobby"),
 		addup = pugroot:get("./Pool 1/Add Up"),
 		notplaying = pugroot:get("./Pool 1/Add Up/Chill Room (Not Playing)"),
 		draftlock = false
@@ -293,11 +293,11 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 end)
 
 ------------------------------------supplementary functions that must appear after serversync
-function get_namespace(obj, r_type)	--the namespace understander [r_type is return type, 's' or 't']
+function get_namespace(obj)	--the namespace understander
 	local channel	
-	if obj:getChannel() then --is a user
+	if obj.__type == "lumble.user" then
 		channel = obj:getChannel()
-	elseif obj:getParent() then --is a channel
+	elseif obj.__type == "lumble.channel" then
 		channel = obj
 	end
 	local channels = {}
@@ -306,9 +306,9 @@ function get_namespace(obj, r_type)	--the namespace understander [r_type is retu
 		channel = channel:getParent()
 	end
 	if channels[#channels - 1] == advNamed.root then
-		return r_type == "s" and 'advNamed' or advNamed
+		return advNamed, "advNamed"
 	elseif channels[#channels - 1] == jrNamed.root then
-		return r_type == "s" and 'jrNamed' or jrNamed
+		return jrNamed, "jrNamed"
 	else
 		--print(obj:getChannel())
 		return {pugs={}}
@@ -357,7 +357,7 @@ function cmd.unlink(ctx, args, flags)
 	ns.addup:unlink(blu, red)
 	blu:unlink(red)
 	ns.draftlock = false
-	log.info("Draftlock -> false. reason: unlink)
+	log.info("Draftlock -> false. reason: unlink")
 	log.info("Server " .. args[1] .. " subchannels unlinked by " .. ctx.sender_name)
 end
 function cmd.dc(ctx, args, flags)
@@ -406,16 +406,24 @@ end
 function cmd.strike(ctx, args)
 	if ctx.admin == false then return -1 end
 	local player = args[1]:lower()
-	players[player].medicImmunity = false
-	log.info(ctx.sender_name .. " removes Medic Immunity from " .. player)
-	pugroot:messager(ctx.sender_name .. " removes " .. player .. "'s medic immunity.", ctx.sender)
+	if players[player] then
+		players[player].medicImmunity = false
+		log.info(ctx.sender_name .. " removes Medic Immunity from " .. player)
+		pugroot:messager("%s removes %s's medic immunity.", ctx.sender_name, player)
+	else
+		ctx.sender:message("Unknown user %q", player)
+	end
 end
 function cmd.ami(ctx, args)
 	if ctx.admin == false then return -1 end
 	local player = args[1]:lower()
-	players[player].medicImmunity = true
-	log.info(ctx.sender_name .. " gives medic immunity to " .. player)
-	pugroot:messager(ctx.sender_name .. " gives " .. player .. " medic immunity.", ctx.sender)
+	if players[player] then
+		players[player].medicImmunity = true
+		log.info(ctx.sender_name .. " gives medic immunity to " .. player)
+		pugroot:messager("%s gives %s medic immunity.", ctx.sender_name, player)
+	else
+		ctx.sender:message("Unknown user %q", player)
+	end
 end
 function cmd.massadd(ctx, args)
 	if ctx.admin == false then return -1 end
@@ -512,28 +520,27 @@ function cmd.remove(ctx, args)
 end
 function cmd.draftlock(ctx, args, flags)
 	if ctx.admin == false then return -1 end
-	local ns = flags["newb"] and jrNamed or advNamed
-	local draftlock = ns.draftlock
+	local ns, nss = flags["newb"] and jrNamed or advNamed, flags["newb"] and "jrNamed" or "advNamed"
 	if #args == 0 then 
-		draftlock = not draftlock
+		ns.draftlock = not ns.draftlock
 	elseif args[1] == "true" then
-		draftlock = true
+		ns.draftlock = true
 	elseif args[1] == "false" then
-		draftlock = false
+		ns.draftlock = false
 	else
 		ctx.sender:message("Unknown value: "..args[1])
 	end
-	if dle then pugroot:messager(ctx.sender_name .. " toggled draftlock to " .. tostring(draftlock)) end
-	log.info(ctx.sender_name .. " toggled draft lock to " .. tostring(draftlock))
+	if dle then pugroot:messager(ctx.sender_name .. " toggled draftlock to " .. tostring(ns.draftlock)) end
+	log.info("%s toggled draftlock to %s for namespace %s", ctx.sender_name, tostring(ns.draftlock), nss)
 end
-function cmd.sync(ctx, args)
+function cmd.sync(ctx, args, flags)
 	if ctx.admin == false then return -1 end
 	if args[1] == "tables" then
 		jrNamed.pugs = load_channels(jrNamed.addup)
 		advNamed.pugs = load_channels(advNamed.addup)
 		ctx.sender:message("Sync'd channels")
 		log.info("Updated channels.")
-	elseif args[1] == "users" then
+	elseif args[1] == "users" and flags["f"] then
 		local _players = {}
 		for _,data in pairs(players) do
 			local obj = data.object
@@ -633,7 +640,7 @@ function cmd.v(ctx, args)
 					p.imprison = team
 				end
 			else																								--rooms full
-				log.info("E102.1")
+				log.error("E102.1")
 				ctx.sender:message("Sorry, bot says you can't do this!")
 			end
 		else --!v username
@@ -674,7 +681,7 @@ function cmd.v(ctx, args)
 		end
 	else						--bad channel
 		ctx.sender:message("Error 103")
-		log.info("E103 | Can't volunteer from this channel")
+		log.error("E103 | Can't volunteer from this channel")
 		log.info(ctx.channel:getName().."*"..ctx.channel:getParent():getName())
 	end
 end
@@ -691,7 +698,7 @@ function cmd.undeaf(ctx)
 		log.info(ctx.sender_name .. " selfbot undeafened.")
 	else
 		ctx.sender:message("Says here you're not server deafened. Try doing !deaf then !undeaf")
-		log.info("E106 | isDeaf?"..tostring(ctx.sender:isDeaf()))
+		log.error("E106 | isDeaf?"..tostring(ctx.sender:isDeaf()))
 	end
 end
 function cmd.purgstatus(ctx, args)
@@ -779,7 +786,7 @@ end)
 
 client:hook("OnUserRemove", "When someone leaves the server, whether of their own volition or by the actions of a moderator", function(client, event)
 	if event.user == nil then
-		log.info("E104: Nil user remove")
+		log.error("E104: Nil user remove")
 		return --i dont know if this needs to be here but im somehow getting an error that event.user is nil?
 	end
 	local u = players[event.user:getName():lower()]
@@ -801,7 +808,7 @@ end)
 client:hook("OnUserChannel", "When someone changes channel", function(client, event)	
 	--event is a table with keys: "user", "actor", "channel_prev", "channel"
 	event.from, event.to = event.channel_prev, event.channel
-	local ns, nss = get_namespace(event.user), get_namespace(event.user, 's')
+	local ns, nss = get_namespace(event.channel)
 	if players[event.user:getName():lower()] == nil then
 			return --user just connected
 		end
@@ -810,7 +817,7 @@ client:hook("OnUserChannel", "When someone changes channel", function(client, ev
 		event.user:move(players[event.user:getName():lower()].imprison)
 		return
 	end
-	if dle and ns.draftlock and (event.to == addup) and not isAdmin(event.actor) then
+	if dle and ns.draftlock and event.to == ns.addup and not isAdmin(event.actor) then
 		if event.actor ~= event.user then
 			log.info(event.user:getName() .. " moved by " .. event.actor:getName() .. " from " .. event.from:getName() .. " to " .. event.to:getName())
 		end
@@ -834,5 +841,19 @@ client:hook("OnUserChannel", "When someone changes channel", function(client, ev
 		end
 		u.channelB = event.to
 	end
+end)
+
+client:hook("OnUserState", "Handle name changes", function(client, event)
+	if event.user == nil or event.old_user == nil then return end
+	--We only want to handle name changes here, I'm pretty sure other hooks will do their jobs better.
+	--I think it also will handle ID changes when a user is registered, so that's pretty cool.
+	if event.user:getName() ~= event.old_user.name then		--are the usernames different?
+		log.info("User name change: %s -> %s", event.old_user.name, event.user:getName())
+		players[event.user:getName():lower()] = players[event.old_user.name:lower()]
+		players[event.old_user.name:lower()] = nil
+	elseif players[event.user:getName():lower()] == nil then	--okay they're the same but was this person here before this state change?
+		return		--they weren't, so don't do anything. (OnUserConnected will handle this)
+	end
+	players[event.user:getName():lower()].object = event.user
 end)
 
