@@ -247,7 +247,7 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log.info("===========================================", false)
-	log.info("Connected, Syncd as %q v4.0.1 on %s", joe:getName() ,_date)
+	log.info("Connected, Syncd as %s v4.0.2 on %s", joe:getName() ,_date)
 	log.info("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	------------------------------------------------
@@ -411,7 +411,7 @@ function cmd.strike(ctx, args)
 		log.info(ctx.sender_name .. " removes Medic Immunity from " .. player)
 		pugroot:messager("%s removes %s's medic immunity.", ctx.sender_name, player)
 	else
-		ctx.sender:message("Unknown user %q", player)
+		ctx.sender:message("Unknown user: %q", player)
 	end
 end
 function cmd.ami(ctx, args)
@@ -422,7 +422,7 @@ function cmd.ami(ctx, args)
 		log.info(ctx.sender_name .. " gives medic immunity to " .. player)
 		pugroot:messager("%s gives %s medic immunity.", ctx.sender_name, player)
 	else
-		ctx.sender:message("Unknown user %q", player)
+		ctx.sender:message("Unknown user: %q", player)
 	end
 end
 function cmd.massadd(ctx, args)
@@ -480,14 +480,22 @@ function cmd.setmotd(ctx, args)
 end
 function cmd.readout(ctx, args)
 	if ctx.admin == false then return -1 end
-	if type(_G[args[1]]) == "table" then
-		ctx.sender:message("Attemping to readout from table...")
-		for k,v in pairs(_G[args[1]]) do
-			ctx.sender:message(args[1] .. ": k,v: " .. k .. ", " .. tostring(v))
+	if #args == 1 then
+		if type(_G[args[1]]) == "table" then
+			ctx.sender:message("Attemping to readout from table...")
+			for k,v in pairs(_G[args[1]]) do
+				ctx.sender:message("%s: %s, %s", args[1], k, v)
+			end
+			ctx.sender:message("Finished reading from table...")
+		else
+			ctx.sender:message(args[1] .. ": " .. tostring(_G[args[1]]))
 		end
-		ctx.sender:message("Finished reading from table...")
 	else
-		ctx.sender:message(args[1] .. ": " .. tostring(_G[args[1]]))
+		local foo = _G
+		for i=1, #args do
+			foo = foo[args[i]]
+		end
+		ctx.sender:message("Response: %s", foo)
 	end
 end
 function cmd.pmute(ctx, args)									--"perma" mute a user. (in vanilla mumble, if someone server muted reconnects, then they lose their muted status. This keeps this muted.
@@ -581,7 +589,7 @@ function cmd.purg(ctx, args)
 	local t = tonumber(args[2]) or 3
 	if t == 0 then t = nil end
 	purgatory[args[1]:lower()] = t
-	log.info(string.format("%s set %s 's medic purgatory length to %i", ctx.sender_name, args[1], t))
+	log.info("%s set %s 's medic purgatory length to %i", ctx.sender_name, args[1], t)
 	write_to_file('purgatory', true)
 end
 --[[Plebians]]--
@@ -672,7 +680,7 @@ function cmd.v(ctx, args)
 			local gifter = ctx.p_data
 			gifter.volunteered, gifter.captain, gifter.medicImmunity = true, true, true
 			gifter.object:move(c)
-			log.info(ctx.sender_name .. " has volunteered for " .. args[1] .. " successfully")
+			log.info("%s has volunteered for %s successfully", ctx.sender_name, args[1])
 			if getlen(c, true) < 1 then
 				log.info(ctx.sender_name .. " has been imprisoned due to their volunteership.")
 				ctx.sender:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be imprisoned, ask an admin to release you.")
@@ -703,7 +711,7 @@ function cmd.undeaf(ctx)
 end
 function cmd.purgstatus(ctx, args)
 	if purgatory[ctx.sender_name:lower()] then
-		ctx.sender:message(string.format("You must suffer %d more medic pug(s)!", purgatory[ctx.sender_name:lower()]))
+		ctx.sender:message("You must suffer %d more medic pug(s)!", purgatory[ctx.sender_name:lower()])
 	else
 		ctx.sender:message("You have no purgatory!")
 	end
@@ -792,7 +800,7 @@ client:hook("OnUserRemove", "When someone leaves the server, whether of their ow
 	local u = players[event.user:getName():lower()]
 	local ns = get_namespace(event.user)
 	if event.ban then
-		log.info("•" .. event.user:getName() .. " banned by "..event.actor:getName().." with reason "..event.reason)
+		log.info("=> %s banned by %s with reason %s", event.user:getName(), event.actor:getName(), event.reason)
 	end
 	for _,server in ipairs(ns.pugs) do --Due to the way information is updated in Lumble, we need to keep our own records on channel lengths.
 		for _,room in pairs(server) do
@@ -819,7 +827,7 @@ client:hook("OnUserChannel", "When someone changes channel", function(client, ev
 	end
 	if dle and ns.draftlock and event.to == ns.addup and not isAdmin(event.actor) then
 		if event.actor ~= event.user then
-			log.info(event.user:getName() .. " moved by " .. event.actor:getName() .. " from " .. event.from:getName() .. " to " .. event.to:getName())
+			log.info("%s moved by %s from %s to %s", event.user:getName(), event.actor:getName(), event.from:getName(), event.to:getName())
 		end
 		log.info(event.user:getName() .. " tried to addup, was locked out.")
 		event.user:move(ns.connectlobby)
@@ -848,7 +856,7 @@ client:hook("OnUserState", "Handle name changes", function(client, event)
 	--We only want to handle name changes here, I'm pretty sure other hooks will do their jobs better.
 	--I think it also will handle ID changes when a user is registered, so that's pretty cool.
 	if event.user:getName() ~= event.old_user.name then		--are the usernames different?
-		log.info("User name change: %s -> %s", event.old_user.name, event.user:getName())
+		log.info("Username change: %s -> %s", event.old_user.name, event.user:getName())
 		players[event.user:getName():lower()] = players[event.old_user.name:lower()]
 		players[event.old_user.name:lower()] = nil
 	elseif players[event.user:getName():lower()] == nil then	--okay they're the same but was this person here before this state change?
