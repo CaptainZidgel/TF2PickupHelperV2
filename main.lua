@@ -14,7 +14,7 @@ local params = {
 	certificate = conn.pem
 }
 local client, err = mumble.getClient(conn.ip, conn.port, params)
-if not client then return end
+if not client then log.error(err) return end
 client:auth("2Poopy2Joe")
 --------------------------------------Extra funcs needed for use inside and outside of commands
 function file_exists(file) local f = io.open(file, "r") if f ~= nil then io.close(f) return true else return false end end	--https://stackoverflow.com/questions/4990990/check-if-a-file-exists-with-lua
@@ -228,10 +228,10 @@ function parse(s, context)
 		if word:sub(1, 1) == "-" then
 			flags[word:sub(2):lower()] = true	--insert flags without the dash
 		else
-			table.insert(kwords, word:lower())			--insert each positional argument into table kwords (includes the cmd name until we remove it).
+			table.insert(kwords, word)			--insert each positional argument into table kwords (includes the cmd name until we remove it).
 		end	
 	end
-	local c_name = table.remove(kwords, 1)	--remove+return the first value (the command name). this way, every value in this table is a parameter. set a variable c_name (command_name) to this value for evaluation.
+	local c_name = table.remove(kwords, 1):lower()	--remove+return the first value (the command name). this way, every value in this table is a parameter. set a variable c_name (command_name) to this value for evaluation.
 	if cmd[c_name] ~= nil then							--if function exists
 		local ret = cmd[c_name](context, kwords, flags)		--call function by name with context and arguments and flags. Set any return to a var.
 		if ret == -1 then
@@ -493,21 +493,21 @@ function cmd.readout(ctx, args)
 	else
 		local foo = _G
 		for i=1, #args do
-			foo = foo[args[i]]
+			pcall(function() foo = foo[args[i]] end)
 		end
 		ctx.sender:message("Response: %s", foo)
 	end
 end
 function cmd.pmute(ctx, args)									--"perma" mute a user. (in vanilla mumble, if someone server muted reconnects, then they lose their muted status. This keeps this muted.
 	if ctx.admin == false then return -1 end
-	local player = players[args[1]]
+	local player = players[args[1]:lower()]
 	local bool = not player.perma_mute				--if user is server muted (method isMuted() appears to not work)
 	player.perma_mute = bool
 	player.object:setMuted(bool)
 end
 function cmd.dpr(ctx, args)
 	if ctx.admin == false then return -1 end
-	players[args[1]].imprison = false
+	players[args[1]:lower()].imprison = false
 	log.info("Released from prison: "..args[1])
 end
 function cmd.append(ctx, args)
@@ -531,19 +531,19 @@ function cmd.draftlock(ctx, args, flags)
 	local ns, nss = flags["newb"] and jrNamed or advNamed, flags["newb"] and "jrNamed" or "advNamed"
 	if #args == 0 then 
 		ns.draftlock = not ns.draftlock
-	elseif args[1] == "true" then
+	elseif args[1]:lower() == "true" then
 		ns.draftlock = true
-	elseif args[1] == "false" then
+	elseif args[1]:lower() == "false" then
 		ns.draftlock = false
 	else
-		ctx.sender:message("Unknown value: "..args[1])
+		ctx.sender:message("Unknown value: %q", args[1])
 	end
 	if dle then pugroot:messager(ctx.sender_name .. " toggled draftlock to " .. tostring(ns.draftlock)) end
 	log.info("%s toggled draftlock to %s for namespace %s", ctx.sender_name, tostring(ns.draftlock), nss)
 end
 function cmd.sync(ctx, args, flags)
 	if ctx.admin == false then return -1 end
-	if args[1] == "tables" then
+	if args[1]:lower() == "tables" then
 		jrNamed.pugs = load_channels(jrNamed.addup)
 		advNamed.pugs = load_channels(advNamed.addup)
 		ctx.sender:message("Sync'd channels")
@@ -557,14 +557,14 @@ function cmd.sync(ctx, args, flags)
 		players = _players
 		ctx.sender:message("Syncd users")
 		log.info("Updated users")
-	elseif args[1] == "admins" then
+	elseif args[1]:lower() == "admins" then
 		client:requestACL()
 		ctx.sender:message("Alright, I've just updated the admins.")
 	end
 end
 function cmd.toggle(ctx, args, flags)
 	if ctx.admin == false then return -1 end
-	if args[1] == "dl" or args[1] == "dle" then
+	if args[1]:lower() == "dl" or args[1]:lower() == "dle" then
 		dle = not dle
 		ctx.sender:message("The draftlock system is now..")
 		if dle then
@@ -573,7 +573,7 @@ function cmd.toggle(ctx, args, flags)
 			ctx.sender:message("Off.")
 		end
 		log.info("Draftlock eligibility toggled to "..tostring(dle))
-	elseif args[1] == "motd" then
+	elseif args[1]:lower() == "motd" then
 		msgen = not msgen
 		log.info("MOTD toggled to "..tostring(msgen).." by "..ctx.sender_name)
 	elseif flags["f"] then
