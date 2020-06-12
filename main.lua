@@ -149,7 +149,8 @@ function roll(t, bottom_up, namespace, uList)
 		loop_through_channels = loop_through_channels + 1
 		if channel.red.length + channel.blu.length < 2 then	--if there is space for medics in a server
 			break
-		elseif loop_through_channels >= #namespace.pugs then--if we have searched each available pug server
+		end
+		if loop_through_channels >= #namespace.pugs then--if we have searched each available pug server
 			addup:messager("You can't roll, all channels are full.")
 			log.info("Someone tried to roll, was denied due to full medic slots.")
 			return
@@ -247,7 +248,7 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log.info("===========================================", false)
-	log.info("Connected, Syncd as %s v4.0.2 on %s", joe:getName() ,_date)
+	log.info("Connected, Syncd as %s v4.0.3 on %s", joe:getName() ,_date)
 	log.info("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	------------------------------------------------
@@ -453,7 +454,7 @@ function cmd.afkcheck(ctx, args, flags)
 		user:requestStats()
 		local is = user:getStat("idlesecs")
 		if is > 300 then
-			log.info(user:getName().." is idle, but not deafened, moving them. Mins:"..tostring(event.idlesecs/60))
+			log.info("%s is idle, moving them. Mins: %s", user:getName(), is/60)
 			user:move(ns.notplaying)
 			user:message("Hey! I think you've been idle for 5 minutes so I'm moving you out of add up.")
 		end
