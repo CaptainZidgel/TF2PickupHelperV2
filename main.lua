@@ -145,12 +145,12 @@ function roll(t, bottom_up, namespace, uList)
 	local userTesting
 	local loop_through_channels = 0
 	local addup = namespace.addup
-	for _,channel in ipairs(namespace.pugs) do
-		loop_through_channels = loop_through_channels + 1
-		if channel.red.length + channel.blu.length < 2 then	--if there is space for medics in a server
-			break
-		end
-		if loop_through_channels >= #namespace.pugs then--if we have searched each available pug server
+	for _,server in ipairs(namespace.pugs) do
+		loop_through_channels = loop_through_channels + 1	--iterate FIRST (so loop_through_channels will always be equal to the "ID" of the server we're searching)
+		if server.red.length + server.blu.length < 2 then	--if there is space for medics in a server
+			break																						--break this FOR LOOP (go to check purgatory)
+		end																								--assume there is no space left in server.
+		if loop_through_channels >= #namespace.pugs then	--if we have searched each available pug server
 			addup:messager("You can't roll, all channels are full.")
 			log.info("Someone tried to roll, was denied due to full medic slots.")
 			return
@@ -248,9 +248,10 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log.info("===========================================", false)
-	log.info("Connected, Syncd as %s v4.0.3 on %s", joe:getName() ,_date)
+	log.info("Connected, Syncd as %s v4.1.0 on %s", joe:getName() ,_date)
 	log.info("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
+	quarantine = false				--whether or not to restrict unregistered users from the server
 	------------------------------------------------
 	root = client:getChannelRoot()
 	pugroot = root:get("./Inhouse Pugs")
@@ -481,21 +482,26 @@ function cmd.setmotd(ctx, args)
 end
 function cmd.readout(ctx, args)
 	if ctx.admin == false then return -1 end
+	local foo
 	if #args == 1 then
-		if type(_G[args[1]]) == "table" then
-			ctx.sender:message("Attemping to readout from table...")
-			for k,v in pairs(_G[args[1]]) do
-				ctx.sender:message("%s: %s, %s", args[1], k, v)
-			end
-			ctx.sender:message("Finished reading from table...")
-		else
-			ctx.sender:message(args[1] .. ": " .. tostring(_G[args[1]]))
-		end
+		foo = _G[args[1]]
 	else
-		local foo = _G
+		foo = _G
 		for i=1, #args do
-			pcall(function() foo = foo[args[i]] end)
+			local ok, err = pcall(function() foo = foo[args[i]] end)
+			if not ok then
+				ctx.sender:message("Error during index during readout: %s", err)
+				return
+			end
 		end
+	end
+	if type(foo) == "table" then
+		ctx.sender:message("Attemping to readout from table %s", args[#args])
+		for k,v in pairs(foo) do
+			ctx.sender:message("%key, value: %s, %s", k, v)
+		end
+		ctx.sender:message("Finished reading from table...")
+	else
 		ctx.sender:message("Response: %s", foo)
 	end
 end
@@ -544,7 +550,7 @@ function cmd.draftlock(ctx, args, flags)
 end
 function cmd.sync(ctx, args, flags)
 	if ctx.admin == false then return -1 end
-	if args[1]:lower() == "tables" then
+	if args[1]:lower() == "tables" or args[1]:lower() == "channels" then
 		jrNamed.pugs = load_channels(jrNamed.addup)
 		advNamed.pugs = load_channels(advNamed.addup)
 		ctx.sender:message("Sync'd channels")
@@ -561,6 +567,8 @@ function cmd.sync(ctx, args, flags)
 	elseif args[1]:lower() == "admins" then
 		client:requestACL()
 		ctx.sender:message("Alright, I've just updated the admins.")
+	else
+		ctx.sender:message("Unknown option: %q, try TABLES or ADMINS", args[1])
 	end
 end
 function cmd.toggle(ctx, args, flags)
@@ -576,7 +584,11 @@ function cmd.toggle(ctx, args, flags)
 		log.info("Draftlock eligibility toggled to "..tostring(dle))
 	elseif args[1]:lower() == "motd" then
 		msgen = not msgen
-		log.info("MOTD toggled to "..tostring(msgen).." by "..ctx.sender_name)
+		log.info("MOTD toggled to %s by %s", msgen, ctx.sender_name)
+	elseif args[1]:lower() == "q" or args[1]:lower() == "quarantine" then
+		quarantine = not quarantine
+		log.info("Quarantine toggled to %s by %s", quarantine, ctx.sender_name)
+		ctx.sender:message("Alright, I toggled quarantine to %s", quarantine)
 	elseif flags["f"] then
 		if type(_G[args[1]]) == "boolean" then
 			_G[args[1]] = not _G[args[1]]
@@ -592,6 +604,26 @@ function cmd.purg(ctx, args)
 	purgatory[args[1]:lower()] = t
 	log.info("%s set %s 's medic purgatory length to %i", ctx.sender_name, args[1], t)
 	write_to_file('purgatory', true)
+end
+function cmd.mute(ctx, args, flags)
+	if ctx.admin == false then return -1 end
+	local ns = flags["newb"] and jrNamed or advNamed
+	log.info("%s muting addup. JR?%s", ctx.sender_name, flags["newb"])
+	for _,user in pairs(ns.addup:getUsers()) do
+		if not isAdmin(user) then
+			user:setServerMuted(true)
+		end
+	end
+	ns.addup:unlink(ns.notplaying)
+end
+function cmd.unmute(ctx, args, flags)
+	if ctx.admin == false then return -1 end
+	local ns = flags["newb"] and jrNamed or advNamed
+	log.info("%s unmuting addup. JR?%s", ctx.sender_name, flags["newb"])
+	for _,user in pairs(ns.addup:getUsers()) do
+		user:setServerMuted(false)
+	end
+	ns.addup:link(ns.notplaying)
 end
 --[[Plebians]]--
 function cmd.pmh(ctx, args, flags)
@@ -820,7 +852,12 @@ client:hook("OnUserChannel", "When someone changes channel", function(client, ev
 	local ns, nss = get_namespace(event.channel)
 	if players[event.user:getName():lower()] == nil then
 			return --user just connected
-		end
+	end
+	if quarantine and event.user:getID() == 0 then --Quarantine user into root
+		event.user:move(root)
+		event.user:message("Hey sorry about that, we're temporarily keeping unregistered users here to prevent abuse. Hopefully an admin will see to you shortly.")
+		return
+	end
 	if players[event.user:getName():lower()].imprison then						--if user must be imprisoned in one channel
 		if event.actor == event.user then event.user:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be imprisoned, ask an admin to release you.") end	
 		event.user:move(players[event.user:getName():lower()].imprison)

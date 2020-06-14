@@ -57,6 +57,12 @@ If anyone is server deafened through the bot, undeafen them.
 `draftlock` *bool*  
 If `bool` is included, set draftlock to that bool (true/false). If not included, toggle draftlock to whatever it isn't.
 
+`mute`  
+Mute everyone in addup, unlink chill room from addup.
+
+`unmute`  
+Unmute everyone in addup, link chill room to addup.
+
 ##### Pug Pool Irrelevant
 
 `clearmh`  
@@ -75,7 +81,7 @@ Give medic immunity to all players provided
 Set a message of the day
 
 `readout` variable  
-Get the value of a global variable within the bot. Can also print out tables like warrants, purgatory, etc.
+Get the value of a global variable within the bot. Can also print out tables like warrants, purgatory, etc. Can readout keys from tables if you write like this: `!readout players User medicImmunity` (equiv to writing print(players["User"]["medicImmunity"] in the interpreter). Case sensitive.
 
 `pmute` player
 Toggle server muting of `player` that persists through multiple sessions.
@@ -95,9 +101,9 @@ Synchronize channels - use this if you add or remove a pug server.
 Synchronize admins - use this if you give mod powers to someone.
 
 `toggle` val  
-`val` can be motd or dle. dle is draftlock's oversight. If dle is toggled off, draftlock will never happen.  
+`val` can be **motd** or **dle** or **q**. dle is draftlock's oversight. If dle is toggled off, draftlock will never happen. If q (quarantine) is toggled on, unregistered users will be forced to stay in root until registered.  
 **Flags:**  
-`-f` If used, val can be any global variable.
+`-f` If used, val can be any global variable. Be very careful!
 
 `purg` player *num*  
 Assign/unassign medic purgatory.  
