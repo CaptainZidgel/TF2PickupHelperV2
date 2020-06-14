@@ -248,7 +248,7 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log.info("===========================================", false)
-	log.info("Connected, Syncd as %s v4.1.0 on %s", joe:getName() ,_date)
+	log.info("Connected, Syncd as %s v4.1.1 on %s", joe:getName() ,_date)
 	log.info("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	quarantine = false				--whether or not to restrict unregistered users from the server
@@ -491,6 +491,7 @@ function cmd.readout(ctx, args)
 			local ok, err = pcall(function() foo = foo[args[i]] end)
 			if not ok then
 				ctx.sender:message("Error during index during readout: %s", err)
+				ctx.sender:message([[Does it say "attempt to index 'foo' (a nil value)"? That means you asked to read from a local table.]])
 				return
 			end
 		end
@@ -498,7 +499,7 @@ function cmd.readout(ctx, args)
 	if type(foo) == "table" then
 		ctx.sender:message("Attemping to readout from table %s", args[#args])
 		for k,v in pairs(foo) do
-			ctx.sender:message("%key, value: %s, %s", k, v)
+			ctx.sender:message("key, value: %s, %s", k, v)
 		end
 		ctx.sender:message("Finished reading from table...")
 	else
