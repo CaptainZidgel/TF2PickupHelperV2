@@ -60,7 +60,7 @@ function find()
 
 end
 
-function channel:messager(m, ...) --self=channel, m=message | SEND RECURSIVELY
+function channel:messager(m, ...) --self=channel, m=message, ...=formatting | this function is just :message but it sends recursively.. in theory.
 	self:message(m, ...)
 	for _,channels in pairs(self:getChildren()) do
 		channels:messager(m, ...)
@@ -151,7 +151,7 @@ function roll(t, bottom_up, namespace, uList)
 			break																						--break this FOR LOOP (go to check purgatory)
 		end																								--assume there is no space left in server.
 		if loop_through_channels >= #namespace.pugs then	--if we have searched each available pug server
-			addup:messager("You can't roll, all channels are full.")
+			ns.root:messager("You can't roll, all channels are full.")
 			log.info("Someone tried to roll, was denied due to full medic slots.")
 			return
 		end
@@ -248,7 +248,7 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log.info("===========================================", false)
-	log.info("Connected, Syncd as %s v4.1.1 on %s", joe:getName() ,_date)
+	log.info("Connected, Syncd as %s v4.1.2 on %s", joe:getName() ,_date)
 	log.info("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	quarantine = false				--whether or not to restrict unregistered users from the server
@@ -292,6 +292,7 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	jrNamed.pugs = load_channels(jrNamed.addup)
 	advNamed.pugs = load_channels(advNamed.addup)
 	dle = true
+	reload_on_roll = true --always reload channel lengths before rolling, to sync lengths and prevent funky movements.
 end)
 
 ------------------------------------supplementary functions that must appear after serversync
@@ -319,7 +320,13 @@ end
 ----------------------------------commands
 --[[Admins]]--
 function cmd.roll(ctx, args, flags)
+  -----------------------------------------
 	if ctx.admin == false then return -1 end
+	if reload_on_roll then
+		log.info("Reloading tables during roll.")
+		cmd.sync({admin = true, sender = client.me}, {"channels"})
+	end
+	-----------------------------------------
 	local bottom_up = false
 	local ns = flags["newb"] and jrNamed or advNamed
 	ns.draftlock = true
@@ -402,16 +409,18 @@ function cmd.clearmh(ctx)
 		v.captain = false
 		v.volunteered = false
 	end
-	pugroot:messager(ctx.sender_name .. " reset medic history.")
-	log.info(ctx.sender_name .. " cleared medic history.")
+	ctx.sender:message("Cleared medic history. You can confirm this with !pmh")
+	pugroot:messager("%s reset medic history.", ctx.sender_name)
+	log.info("%s cleared medic history.", ctx.sender_name)
 end
 function cmd.strike(ctx, args)
 	if ctx.admin == false then return -1 end
 	local player = args[1]:lower()
 	if players[player] then
 		players[player].medicImmunity = false
-		log.info(ctx.sender_name .. " removes Medic Immunity from " .. player)
+		log.info("%s removes Medic Immunity from %s", ctx.sender_name, player)
 		pugroot:messager("%s removes %s's medic immunity.", ctx.sender_name, player)
+		ctx.sender:message("%s removes %s's medic immunity.", ctx.sender_name, player)
 	else
 		ctx.sender:message("Unknown user: %q", player)
 	end
@@ -421,8 +430,9 @@ function cmd.ami(ctx, args)
 	local player = args[1]:lower()
 	if players[player] then
 		players[player].medicImmunity = true
-		log.info(ctx.sender_name .. " gives medic immunity to " .. player)
+		log.info("%s gives medic immunity to %s", ctx.sender_name, player)
 		pugroot:messager("%s gives %s medic immunity.", ctx.sender_name, player)
+		ctx.sender:message("%s gives %s medic immunity.", ctx.sender_name, player)
 	else
 		ctx.sender:message("Unknown user: %q", player)
 	end
@@ -521,10 +531,15 @@ end
 function cmd.append(ctx, args)
 	if ctx.admin == false then return -1 end
 	if #args < 2 then ctx.sender:message("Are you missing a parameter?") return end
-	_G[args[1]][args[2]:lower()] = true
-	write_to_file(args[1])
-	log.info(ctx.sender_name.." committed "..args[2].." to table "..args[1])
-	ctx.sender:message("Added "..args[2].." to table "..args[1])
+	local ok, err = pcall(function() _G[args[1]][args[2]:lower()] = true end)
+	if ok then
+		write_to_file(args[1])
+		log.info(ctx.sender_name.." committed "..args[2].." to table "..args[1])
+		ctx.sender:message("Added %s to table %s", args[2], args[1])
+	else
+		ctx.sender:message("ERROR: %s", err)
+		ctx.sender:message("Did you get error 'attempt to index nil value'? Means you probably entered the wrong table name for argument 1. TRY: 'warrants' 'purgatory'")
+	end
 end
 function cmd.remove(ctx, args)
 	if ctx.admin == false then return -1 end
@@ -590,6 +605,9 @@ function cmd.toggle(ctx, args, flags)
 		quarantine = not quarantine
 		log.info("Quarantine toggled to %s by %s", quarantine, ctx.sender_name)
 		ctx.sender:message("Alright, I toggled quarantine to %s", quarantine)
+	elseif args[1]:lower() == "roll_reload" then
+		reload_on_roll = not reload_on_roll
+		ctx.sender:message("Toggled reload on roll to %s", reload_on_roll)
 	elseif flags["f"] then
 		if type(_G[args[1]]) == "boolean" then
 			_G[args[1]] = not _G[args[1]]
@@ -598,13 +616,18 @@ function cmd.toggle(ctx, args, flags)
 		end
 	end		
 end
-function cmd.purg(ctx, args)
+function cmd.purg(ctx, args, flags)
 	if ctx.admin == false then return -1 end
 	local t = tonumber(args[2]) or 3
 	if t == 0 then t = nil end
-	purgatory[args[1]:lower()] = t
-	log.info("%s set %s 's medic purgatory length to %i", ctx.sender_name, args[1], t)
-	write_to_file('purgatory', true)
+	if players[args[1]:lower()] ~= nil then
+		purgatory[args[1]:lower()] = t
+		log.info("%s set %s 's medic purgatory length to %i", ctx.sender_name, args[1], t)
+		ctx.sender("Set %s 's medic purgatory length: %i games remaining.", args[1], t or 0)
+		write_to_file('purgatory', true)
+	elseif not flags["f"] then
+		ctx.sender("I am not aware of a player named %q, please check your spelling OR repeat the command with -f to forcefully apply purgatory to this name, regardless of whether or not there is a real user attached to it.", args[1])
+	end
 end
 function cmd.mute(ctx, args, flags)
 	if ctx.admin == false then return -1 end
@@ -626,6 +649,35 @@ function cmd.unmute(ctx, args, flags)
 	end
 	ns.addup:link(ns.notplaying)
 end
+function cmd.c_info(ctx, args, flags)
+	if ctx.admin == false then return -1 end
+	local func
+	if flags["chat"] then
+		func = function(m, ...)
+						ctx.sender:message(m, ...)
+		end
+	else
+		func = log.info
+	end
+	func("Beginning channel info dump...")
+	for _, channel in ipairs(client:getChannels()) do
+		local server = string.match(channel:getParent():getName(), "Pug Server (%d)")
+		if server then
+			local color = channel:getName()
+			local ns, nss = get_namespace(channel)
+			local rl = ns.pugs[tonumber(server)][color].length
+			local len = getlen(channel)
+			func("=> (NS: %s) Server %i:%s, RL: %i, AL: %i", nss, server, color, rl, len) --namespace, server, team color, reported length, actual length
+						-- (NS: advNamed) Server 1:red, RL: 2, AL: 2)
+		end
+	end
+	func("Ending channel info dump...")
+end
+function cmd.test_m(ctx, args, flags)
+	if ctx.admin == false then return -1 end
+	ctx.sender:getChannel():getParent():messager("This is a recursive message.")
+	ctx.sender:getChannel():getParent():messager("This is a recursive message with %s.", "formatting")
+end
 --[[Plebians]]--
 function cmd.pmh(ctx, args, flags)
 	if flags["me"] then
@@ -640,6 +692,7 @@ function cmd.pmh(ctx, args, flags)
 				ctx.sender:message(player .. " has medic immunity")
 			end
 		end
+		ctx.sender:message("End of medic history. If no names were printed, that means there is no history.")
 	end
 end
 function cmd.v(ctx, args)
@@ -688,7 +741,7 @@ function cmd.v(ctx, args)
 		else --!v username
 			local recipient = players[args[1]:lower()]
 			if recipient == nil then
-				ctx.sender:message("Hey, that's not a user I recognize. Did you spell it right?")
+				ctx.sender:message("Hey, that's not a user I recognize: %q. Did you spell it right?", args[1])
 				return
 			end
 			if args[1]:lower() == ctx.sender_name:lower() then
@@ -760,7 +813,7 @@ function cmd.flip(ctx)
 	else
 		c = ("Tails")
 	end
-	ctx.channel:message(c.." (Coin flipped by "..ctx.sender_name..")")
+	ctx.channel:messager("%s (Coin flipped by %s )", c, ctx.sender_name)
 end
 function cmd.rng(ctx, args)
 	math.randomseed(os.time())
