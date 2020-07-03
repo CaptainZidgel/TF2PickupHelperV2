@@ -83,14 +83,16 @@ Set a message of the day
 `readout` variable  
 Get the value of a global variable within the bot. Can also print out tables like warrants, purgatory, etc. Can readout keys from tables if you write like this: `!readout players User medicImmunity` (equiv to writing print(players["User"]["medicImmunity"] in the interpreter). Case sensitive.
 
-`pmute` player
+`pmute` player  
 Toggle server muting of `player` that persists through multiple sessions.
 
 `dpr` player  
-Remove player from "prison"
+Remove player from "prison" (Prison prevents a person from changing channels - it is enacted after they volunteer for medic and removed when their game is done)
 
 `append` table value  
-Add value to a global table.
+Add value to a global table.  
+Potential uses:  
+`!append warrants person` Place a warrant on person, who will be banned on next connect.  
 
 `remove` table value  
 Remove value from table.

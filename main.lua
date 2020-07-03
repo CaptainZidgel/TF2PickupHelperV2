@@ -248,7 +248,7 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log.info("===========================================", false)
-	log.info("Connected, Syncd as %s v4.1.2 on %s", joe:getName() ,_date)
+	log.info("Connected, Syncd as %s v4.2.0 on %s", joe:getName() ,_date)
 	log.info("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	quarantine = false				--whether or not to restrict unregistered users from the server
@@ -697,6 +697,11 @@ function cmd.pmh(ctx, args, flags)
 end
 function cmd.v(ctx, args)
 	local ns = get_namespace(ctx.sender)
+	if #ns.pugs == 0 then
+		ctx.sender:message("ERROR 105 | CAN'T VOLUNTEER FROM CHANNEL; ARE YOU IN ADD UP?")
+		log.error("ERROR 105: NO NAMESPACE: User %s attempted to volunteer through PORTAL, failed due to no namespace for original channel %s.", ctx.sender_name, ctx.channel:getName())
+		return -105
+	end
 	local addup, connectlobby = ns.addup, ns.connectlobby
 	if ctx.channel == addup or ctx.channel == connectlobby or ctx.channel == spacebase then
 		local team = args[1]:lower()		
@@ -731,34 +736,35 @@ function cmd.v(ctx, args)
 				p.captain = true
 				if getlen(team, true) < 1 then
 					log.info(ctx.sender_name .. " has been imprisoned due to their volunteership.")
-					ctx.sender:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be imprisoned, ask an admin to release you.")
+					ctx.sender:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be unimprisoned, ask an admin to release you.")
 					p.imprison = team
 				end
 			else																								--rooms full
 				log.error("E102.1")
 				ctx.sender:message("Sorry, bot says you can't do this!")
+				return -102.1
 			end
 		else --!v username
 			local recipient = players[args[1]:lower()]
 			if recipient == nil then
 				ctx.sender:message("Hey, that's not a user I recognize: %q. Did you spell it right?", args[1])
-				return
+				return -102.2
 			end
 			if args[1]:lower() == ctx.sender_name:lower() then
 				ctx.sender:message("You can't do that!")
-				return
+				return -102.3
 			end
 			if recipient.medicImmunity == false then
 				ctx.sender:message("This person has to have been rolled on medic to be volunteered for.")
-				return
+				return -102.4
 			end
 			if recipient.volunteered then
 				ctx.sender:message("You can't volunteer, this medic is already a volunteer") 
-				return 
+				return -102.5
 			end		
 			if string.find(recipient.object:getChannel():getParent():getName(), "Pug Server %d") == nil then
 				ctx.sender:message("This can't be done, the person you're trying to volunteer for isn't even in a pug server!")
-				return
+				return -102.6
 			end			
 			recipient.medicImmunity = false
 			recipient.captain = false
@@ -768,17 +774,19 @@ function cmd.v(ctx, args)
 			gifter.volunteered, gifter.captain, gifter.medicImmunity = true, true, true
 			gifter.object:move(c)
 			log.info("%s has volunteered for %s successfully", ctx.sender_name, args[1])
-			if getlen(c, true) < 1 then
+			if (ctx.self_vol and getlen(c, true) < 1) or getlen(c, true) < 1 then
 				log.info(ctx.sender_name .. " has been imprisoned due to their volunteership.")
-				ctx.sender:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be imprisoned, ask an admin to release you.")
+				ctx.sender:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be unimprisoned, ask an admin to release you.")
 				gifter.imprison = c
 			end
 		end
 	else						--bad channel
-		ctx.sender:message("Error 103")
-		log.error("E103 | Can't volunteer from this channel")
+		ctx.sender:message("Error 103 | CANT VOLUNTEER FROM THIS CHANNEL")
+		log.error("ERROR 103 | Can't volunteer from this channel")
 		log.info(ctx.channel:getName().."*"..ctx.channel:getParent():getName())
+		return -103
 	end
+	return 1
 end
 function cmd.deaf(ctx)
 	ctx.sender:setServerDeafened(true)
@@ -912,8 +920,28 @@ client:hook("OnUserChannel", "When someone changes channel", function(client, ev
 		event.user:message("Hey sorry about that, we're temporarily keeping unregistered users here to prevent abuse. Hopefully an admin will see to you shortly.")
 		return
 	end
+	if string.match(event.to:getName(), "VOLUNTEER FOR (...) MEDIC") then
+		local team = string.match(event.to:getName(), "VOLUNTEER FOR (...) MEDIC"):lower()
+		local from = event.user == event.actor and event.from or advNamed.addup
+		local ctx = {
+						sender = event.user,
+						sender_name = event.user:getName(),
+						p_data = players[event.user:getName():lower()],
+						override = true,
+						self_vol = event.actor == event.user,
+						channel = from
+					}
+		local r = cmd.v(ctx, {team})
+		if r == 1 then
+			log.info("User %s volunteered through PORTAL %s successfully.", event.user:getName(), team)
+		else
+			event.user:move(event.from)
+			log.error("Err in portal volunteer: %s", r)
+			log.error("Context: %s", inspect(ctx, {depth=2}))
+		end
+	end
 	if players[event.user:getName():lower()].imprison then						--if user must be imprisoned in one channel
-		if event.actor == event.user then event.user:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be imprisoned, ask an admin to release you.") end	
+		if event.actor == event.user then event.user:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be unimprisoned, ask an admin to release you.") end	
 		event.user:move(players[event.user:getName():lower()].imprison)
 		return
 	end
