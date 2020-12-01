@@ -128,7 +128,7 @@ end
 
 function determine_roll_num(ns)
 	for i,channel in ipairs(ns.pugs) do
-		local server = ns.addup:get("./Pug Server "..tostring(i))
+		local server = ns.addup:get("./Pug "..tostring(i))
 		local l = getlen(server, true)
 		if l < 2 then				--if 2 or more players, do the return. else: implicit continue
 			return 2 - l			--this will return "2" if 0 people are in the selected server and "1" if 1 person is added up. No overflows.
@@ -248,30 +248,24 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log.info("===========================================", false)
-	log.info("Connected, Syncd as %s v4.2.0 on %s", joe:getName() ,_date)
+	log.info("Connected, Syncd as %s v4.2.1b on %s", joe:getName() ,_date)
 	log.info("===========================================", false)
 	motd, msgen = "", false		--message of the day, message of the day bool	
 	quarantine = false				--whether or not to restrict unregistered users from the server
 	------------------------------------------------
 	root = client:getChannelRoot()
-	pugroot = root:get("./Inhouse Pugs")
-	spacebase = root:get("./Inhouse Pugs/Poopy Joes Space Base")
+	pugroot = root:get("./Pugs")
+	spacebase = root:get("./BASKETBALL COURT")
 	------------------------------------------------"advanced" pugs (advanced to distinguish from junior)
 	advNamed = {
-		root = pugroot:get("./Pool 1"),
-		connectlobby = pugroot:get("./Pool 1/Connection Lobby"),
-		addup = pugroot:get("./Pool 1/Add Up"),
-		notplaying = pugroot:get("./Pool 1/Add Up/Chill Room (Not Playing)"),
+		root = pugroot,
+		connectlobby = pugroot,
+		addup = pugroot:get("./ADD UP HERE"),
+		notplaying = root:get("./CHILL ROOM"),
 		draftlock = false
 	}
 	------------ok jr pugs now----------------------
-	jrNamed = {
-		root = pugroot:get("./Pool 2"),
-		connectlobby = pugroot:get("./Pool 2/Entrance"),
-		addup = pugroot:get("./Pool 2/Add Up"),
-		notplaying = pugroot:get("./Pool 2/Add Up/Not Playing"),
-		draftlock = false
-	}
+	jrNamed = {}
 	------------------------------------------------
 	joe:move(spacebase)
 	players = {}
@@ -289,7 +283,6 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 			medicImmunity = isMac(v)
 		}
 	end
-	jrNamed.pugs = load_channels(jrNamed.addup)
 	advNamed.pugs = load_channels(advNamed.addup)
 	dle = true
 	reload_on_roll = true --always reload channel lengths before rolling, to sync lengths and prevent funky movements.
@@ -308,14 +301,8 @@ function get_namespace(obj)	--the namespace understander
 		table.insert(channels, channel)
 		channel = channel:getParent()
 	end
-	if channels[#channels - 1] == advNamed.root then
-		return advNamed, "advNamed"
-	elseif channels[#channels - 1] == jrNamed.root then
-		return jrNamed, "jrNamed"
-	else
-		--print(obj:getChannel())
-		return {pugs={}}
-	end
+	
+	return advNamed, "advNamed"
 end
 ----------------------------------commands
 --[[Admins]]--
@@ -567,7 +554,6 @@ end
 function cmd.sync(ctx, args, flags)
 	if ctx.admin == false then return -1 end
 	if args[1]:lower() == "tables" or args[1]:lower() == "channels" then
-		jrNamed.pugs = load_channels(jrNamed.addup)
 		advNamed.pugs = load_channels(advNamed.addup)
 		ctx.sender:message("Sync'd channels")
 		log.info("Updated channels.")
@@ -661,10 +647,11 @@ function cmd.c_info(ctx, args, flags)
 	end
 	func("Beginning channel info dump...")
 	for _, channel in ipairs(client:getChannels()) do
-		local server = string.match(channel:getParent():getName(), "Pug Server (%d)")
+		print("TEMP: ", channel:getParent():getName())
+		local server = string.match(channel:getParent():getName(), "Pug (%d)")
 		if server then
 			local color = channel:getName()
-			local ns, nss = get_namespace(channel)
+			local ns, nss = advNamed, "advNamed"
 			local rl = ns.pugs[tonumber(server)][color].length
 			local len = getlen(channel)
 			func("=> (NS: %s) Server %i:%s, RL: %i, AL: %i", nss, server, color, rl, len) --namespace, server, team color, reported length, actual length
@@ -873,7 +860,7 @@ client:hook("OnUserConnected", "When someone connects, update their information.
 		if players[name].perma_mute == true then
 			event.user:setMuted(true)
 		end
-		if players[name].imprison then event.user:move(players[name].imprison) end
+		--if players[name].imprison then event.user:move(players[name].imprison) end
 	end
 	if warrants[name] == true then										--warrants are evaluated after the player data is set so that if this is the user's first time connecting under this bot session, it doesn't cause any errors.
 		log.info("Banned " .. name .. " due to warrant!")
