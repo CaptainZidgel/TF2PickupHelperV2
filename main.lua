@@ -316,7 +316,7 @@ function cmd.roll(ctx, args, flags)
 	end
 	-----------------------------------------
 	local bottom_up = false
-	local ns = flags["newb"] and jrNamed or advNamed
+	local ns = advNamed
 	ns.draftlock = true
 	log.info("Draftlock switched to true after roll begins")
 	ns.root:messager("Medics being rolled, draft is locked.")
@@ -937,6 +937,18 @@ client:hook("OnUserChannel", "When someone changes channel", function(client, ev
 			event.user:move(event.from)
 			log.error("Err in portal volunteer: %s", r)
 			log.error("Context: %s", inspect(ctx, {depth=2}))
+		end
+	elseif event.to:getName() == "ROLL FOR MEDICS" then
+		event.user:move(event.from)	
+		if isAdmin(event.user) then
+			ctx = {
+				sender = event.user,
+				sender_name = event.user:getName(),
+				admin = true --we already checked earlier
+			}
+			cmd.roll(ctx, {}, {})	
+		else
+			event.user:message("You need to be an admin")
 		end
 	end
 	if players[event.user:getName():lower()].imprison then						--if user must be imprisoned in one channel
