@@ -261,7 +261,7 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	advNamed = {
 		root = pugroot,
 		connectlobby = pugroot,
-		addup = pugroot:get("./ADD UP HERE"),
+		addup = pugroot:get("./Add Up"),
 		notplaying = root:get("./CHILL ROOM"),
 		draftlock = false
 	}
