@@ -56,9 +56,14 @@ warrants = qlines("warrants.csv")
 purgatory = qlines("purgatory.csv", true)
 local players = {}
 
-function find()
-
-end
+--[[things #haha i am bad at code]]--
+motd, msgen = "", false
+quarantine = false
+dle = true
+reload_on_roll = true --always reload channel lengths before rolling, to sync lengths and prevent funky movements.
+quarantine = false				--whether or not to restrict unregistered users from the server
+advNamed = {}
+--[[====]]--
 
 function channel:messager(m, ...) --self=channel, m=message, ...=formatting | this function is just :message but it sends recursively.. in theory.
 	self:message(m, ...)
@@ -248,21 +253,20 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log.info("===========================================", false)
-	log.info("Connected, Syncd as %s v4.2.0 on %s", joe:getName() ,_date)
+	log.info("Connected, Syncd as %s v4.4.0b on %s", joe:getName() ,_date)
 	log.info("===========================================", false)
-	motd, msgen = "", false		--message of the day, message of the day bool	
-	quarantine = false				--whether or not to restrict unregistered users from the server
 	------------------------------------------------
 	root = client:getChannelRoot()
 	pugroot = root:get("./Inhouse Pugs")
 	spacebase = root:get("./Inhouse Pugs/Poopy Joes Space Base")
 	------------------------------------------------"advanced" pugs (advanced to distinguish from junior)
+	local dl = advNamed.draftlock
 	advNamed = {
-		root = pugroot:get("./Pool 1"),
-		connectlobby = pugroot:get("./Pool 1/Connection Lobby"),
-		addup = pugroot:get("./Pool 1/Add Up"),
-		notplaying = pugroot:get("./Pool 1/Add Up/Chill Room (Not Playing)"),
-		draftlock = false
+		root = pugroot,
+		connectlobby = pugroot,
+		addup = pugroot:get("./Add Up"),
+		notplaying = root:get("./CHILL ROOM"),
+		draftlock = dl or false
 	}
 	------------ok jr pugs now----------------------
 	jrNamed = {
@@ -274,25 +278,24 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	}
 	------------------------------------------------
 	joe:move(spacebase)
-	players = {}
+	
 	for _,v in pairs(client:getUsers()) do
 		local u = v:getName():lower()
+		local p = players[u] or {volunteered = false, captain = false, dontUpdate = false, selfbotdeaf = false, perma_mute = false, imprison = false} --default user if not already exists
 		players[u] = {
 			object = v,
-			volunteered = false,
-			captain = false,
-			dontUpdate = false,
+			volunteered = p.volunteered,
+			captain = p.captain,
+			dontUpdate = p.dontUpdate,
 			channelB = v:getChannel(),
-			selfbotdeaf = false,
-			perma_mute = false,
-			imprison = false,
+			selfbotdeaf = p.selfbotdeaf,
+			perma_mute = p.perma_mute,
+			imprison = p.imprison,
 			medicImmunity = isMac(v)
 		}
 	end
 	jrNamed.pugs = load_channels(jrNamed.addup)
 	advNamed.pugs = load_channels(advNamed.addup)
-	dle = true
-	reload_on_roll = true --always reload channel lengths before rolling, to sync lengths and prevent funky movements.
 end)
 
 ------------------------------------supplementary functions that must appear after serversync
@@ -845,9 +848,9 @@ client:hook("OnACL", function(client, event)
 	for i=1, #event.groups.admin.add do
 		admins[event.groups.admin.add[i]] = true
 	end
-	for i=1, #event.groups.moderator.add do
+	--[==[[for i=1, #event.groups.moderator.add do
 		admins[event.groups.moderator.add[i]] = true
-	end
+	end]]==]
 end)
 
 client:hook("OnUserConnected", "When someone connects, update their information. If they need to be banned, ban them.", function(client, event)
