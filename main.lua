@@ -4,6 +4,7 @@ local inspect = require("inspect")
 local mumble = require("lumble")
 local log = require("log")
 local channel = require("lumble.client.channel")
+local concommand = require("concommand")
 -----------------------
 local conn = require("connect")
 --------------------------------------Configuration
@@ -133,7 +134,7 @@ end
 
 function determine_roll_num(ns)
 	for i,channel in ipairs(ns.pugs) do
-		local server = ns.addup:get("./Pug Server "..tostring(i))
+		local server = ns.addup:get("./Pug "..tostring(i))
 		local l = getlen(server, true)
 		if l < 2 then				--if 2 or more players, do the return. else: implicit continue
 			return 2 - l			--this will return "2" if 0 people are in the selected server and "1" if 1 person is added up. No overflows.
@@ -257,8 +258,8 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	log.info("===========================================", false)
 	------------------------------------------------
 	root = client:getChannelRoot()
-	pugroot = root:get("./Inhouse Pugs")
-	spacebase = root:get("./Inhouse Pugs/Poopy Joes Space Base")
+	pugroot = root:get("./Pugs")
+	spacebase = root:get("./BASKETBALL COURT")
 	------------------------------------------------"advanced" pugs (advanced to distinguish from junior)
 	local dl = advNamed.draftlock
 	advNamed = {
@@ -269,13 +270,7 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 		draftlock = dl or false
 	}
 	------------ok jr pugs now----------------------
-	jrNamed = {
-		root = pugroot:get("./Pool 2"),
-		connectlobby = pugroot:get("./Pool 2/Entrance"),
-		addup = pugroot:get("./Pool 2/Add Up"),
-		notplaying = pugroot:get("./Pool 2/Add Up/Not Playing"),
-		draftlock = false
-	}
+	jrNamed = {}
 	------------------------------------------------
 	joe:move(spacebase)
 	
@@ -294,7 +289,6 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 			medicImmunity = isMac(v)
 		}
 	end
-	jrNamed.pugs = load_channels(jrNamed.addup)
 	advNamed.pugs = load_channels(advNamed.addup)
 end)
 
@@ -311,14 +305,8 @@ function get_namespace(obj)	--the namespace understander
 		table.insert(channels, channel)
 		channel = channel:getParent()
 	end
-	if channels[#channels - 1] == advNamed.root then
-		return advNamed, "advNamed"
-	elseif channels[#channels - 1] == jrNamed.root then
-		return jrNamed, "jrNamed"
-	else
-		--print(obj:getChannel())
-		return {pugs={}}
-	end
+	
+	return advNamed, "advNamed"
 end
 ----------------------------------commands
 --[[Admins]]--
@@ -331,7 +319,7 @@ function cmd.roll(ctx, args, flags)
 	end
 	-----------------------------------------
 	local bottom_up = false
-	local ns = flags["newb"] and jrNamed or advNamed
+	local ns = advNamed
 	ns.draftlock = true
 	log.info("Draftlock switched to true after roll begins")
 	ns.root:messager("Medics being rolled, draft is locked.")
@@ -354,7 +342,7 @@ function cmd.roll(ctx, args, flags)
 end
 function cmd.link(ctx, args, flags)
 	if ctx.admin == false then return -1 end
-	local ns = flags["newb"] and jrNamed or advNamed
+	local ns = ctx.ns
 	local server = ns.pugs[tonumber(args[1])]
 	local red, blu = server.red.object, server.blu.object
 	ns.addup:link(blu, red)
@@ -570,7 +558,6 @@ end
 function cmd.sync(ctx, args, flags)
 	if ctx.admin == false then return -1 end
 	if args[1]:lower() == "tables" or args[1]:lower() == "channels" then
-		jrNamed.pugs = load_channels(jrNamed.addup)
 		advNamed.pugs = load_channels(advNamed.addup)
 		ctx.sender:message("Sync'd channels")
 		log.info("Updated channels.")
@@ -664,10 +651,11 @@ function cmd.c_info(ctx, args, flags)
 	end
 	func("Beginning channel info dump...")
 	for _, channel in ipairs(client:getChannels()) do
-		local server = string.match(channel:getParent():getName(), "Pug Server (%d)")
+		print("TEMP: ", channel:getParent():getName())
+		local server = string.match(channel:getParent():getName(), "Pug (%d)")
 		if server then
 			local color = channel:getName()
-			local ns, nss = get_namespace(channel)
+			local ns, nss = advNamed, "advNamed"
 			local rl = ns.pugs[tonumber(server)][color].length
 			local len = getlen(channel)
 			func("=> (NS: %s) Server %i:%s, RL: %i, AL: %i", nss, server, color, rl, len) --namespace, server, team color, reported length, actual length
@@ -690,12 +678,13 @@ function cmd.pmh(ctx, args, flags)
 			ctx.sender:message("You don't have immunity! Watch your back.")
 		end
 	else
+		local results = {}
 		for player,data in pairs(players) do
 			if data.medicImmunity then
-				ctx.sender:message(player .. " has medic immunity")
+				table.insert(results, player)
 			end
 		end
-		ctx.sender:message("End of medic history. If no names were printed, that means there is no history.")
+		ctx.sender:message("Medic History:<br>"..table.concat(results, "<br>").."<br>(end of history)")
 	end
 end
 function cmd.v(ctx, args)
@@ -830,16 +819,26 @@ function cmd.rng(ctx, args)
 	math.randomseed(os.time())
 	ctx.sender:message(tostring(math.random(tonumber(args[1]), tonumber(args[2]))))
 end
+
 -----------------------------------Hooks
 client:hook("OnTextMessage", function(client, event)
 	local msg = event.message:gsub("<.+>", ""):gsub("\n*", ""):gsub("%s$", "")	--clean off html tags added by mumble, as well as trailing spaces and newlines.
+	singleton_arg = msg:gsub("^!%w+%s", "")
 	if string.find(msg, "!", 1) == 1 then	--if starts with !
 		parse(string.sub(msg, 2), {
 				p_data = players[event.actor:getName():lower()], 
 				admin = isAdmin(event.actor), 
 				sender_name = event.actor:getName(),
 				sender = event.actor,
-				channel = event.actor:getChannel()})
+				channel = event.actor:getChannel(),
+				singleton = singleton_arg,
+				ns = get_namespace(event.actor) --I NEED TO REMOVE NAMESPACES AT SOME POINT!! AAAAA
+				}
+		)
+	else
+		if string.find(msg, "connect %S+; password %w+") then
+			event.actor:getChannel():message("steam://"..msg:gsub("connect ", "connect/"):gsub("; password ", "/"))
+		end
 	end
 end)
 
@@ -876,7 +875,7 @@ client:hook("OnUserConnected", "When someone connects, update their information.
 		if players[name].perma_mute == true then
 			event.user:setMuted(true)
 		end
-		if players[name].imprison then event.user:move(players[name].imprison) end
+		--if players[name].imprison then event.user:move(players[name].imprison) end
 	end
 	if warrants[name] == true then										--warrants are evaluated after the player data is set so that if this is the user's first time connecting under this bot session, it doesn't cause any errors.
 		log.info("Banned " .. name .. " due to warrant!")
@@ -942,6 +941,18 @@ client:hook("OnUserChannel", "When someone changes channel", function(client, ev
 			log.error("Err in portal volunteer: %s", r)
 			log.error("Context: %s", inspect(ctx, {depth=2}))
 		end
+	elseif event.to:getName() == "ROLL FOR MEDICS" then
+		event.user:move(event.from)	
+		if isAdmin(event.user) then
+			ctx = {
+				sender = event.user,
+				sender_name = event.user:getName(),
+				admin = true --we already checked earlier
+			}
+			cmd.roll(ctx, {}, {})	
+		else
+			event.user:message("You need to be an admin")
+		end
 	end
 	if players[event.user:getName():lower()].imprison then						--if user must be imprisoned in one channel
 		if event.actor == event.user then event.user:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be unimprisoned, ask an admin to release you.") end	
@@ -988,3 +999,30 @@ client:hook("OnUserState", "Handle name changes", function(client, event)
 	players[event.user:getName():lower()].object = event.user
 end)
 
+
+
+--[[=============================
+CONSOLE
+COMMANDS
+===============================]]--
+concommand.Add("exec", function(cmdname, args)
+	ctx = {
+		sender = client.me,
+		sender_name = "ConsoleSU",
+		admin = true,
+		ns = advNamed
+	}
+	cname = table.remove(args, 1)
+	local ok, err = pcall(function() cmd[cname](ctx, args) end)
+	if ok then
+		log.info("Console SuperUser executing command %s", cmdname)
+	else
+		print("ERR:[[")
+		print(err)
+		print("]]")
+	end
+end, "execute a bot command")
+
+concommand.Add("clearmeds", function(cmdname, args) --ideally only called by cron job
+	cmd.clearmh({admin = true, sender=client.me, sender_name="SU"})
+end, "clear medic history")
