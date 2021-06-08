@@ -58,9 +58,9 @@ purgatory = qlines("purgatory.csv", true)
 local players = {}
 
 --[[things #haha i am bad at code]]--
-motd, msgen = "", false
-quarantine = false
-dle = true
+motd, msgen = conn.motd or "", conn.motd_enabled
+prisonen = conn.prison_enabled
+dle = conn.draftlock_enabled
 reload_on_roll = true --always reload channel lengths before rolling, to sync lengths and prevent funky movements.
 quarantine = false				--whether or not to restrict unregistered users from the server
 advNamed = {}
@@ -222,7 +222,8 @@ function roll(t, bottom_up, namespace, uList)
 		log.info("Error in roll-move")
 		return
 	end
-	log.info("Moved " .. user.object:getName())
+	log.info("Moved %s", user.object:getName())
+	log.trace("Setting dontUpdate to true for %s due to roll", user.object:getName())
 	user.dontUpdate = true
 	user.medicImmunity = true
 	user.captain = true
@@ -598,6 +599,10 @@ function cmd.toggle(ctx, args, flags)
 	elseif args[1]:lower() == "roll_reload" then
 		reload_on_roll = not reload_on_roll
 		ctx.sender:message("Toggled reload on roll to %s", reload_on_roll)
+	elseif args[1]:lower() == "prison" then
+		prisonen = not prisonen
+		ctx.sender:message("Toggled prison to %s", prisonen)
+		log.info("Prison toggled to %s by %s", prisonen, ctx.sender_name)
 	elseif flags["f"] then
 		if type(_G[args[1]]) == "boolean" then
 			_G[args[1]] = not _G[args[1]]
@@ -721,6 +726,7 @@ function cmd.v(ctx, args)
 					players[user:getName():lower()].captain = false
 					user:move(addup)
 				end
+				log.trace("Moving user %s to %s for volunmteer", ctx.sender_name, team.id)
 				ctx.sender:move(team)
 				local p = ctx.p_data				--data of the sender
 				p.medicImmunity = true
@@ -730,6 +736,7 @@ function cmd.v(ctx, args)
 					log.info(ctx.sender_name .. " has been imprisoned due to their volunteership.")
 					ctx.sender:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be unimprisoned, ask an admin to release you.")
 					p.imprison = team
+					log.trace("Settting user %s to imprisoned state", ctx.sender_name)
 				end
 			else																								--rooms full
 				log.error("E102.1")
@@ -875,7 +882,6 @@ client:hook("OnUserConnected", "When someone connects, update their information.
 		if players[name].perma_mute == true then
 			event.user:setMuted(true)
 		end
-		--if players[name].imprison then event.user:move(players[name].imprison) end
 	end
 	if warrants[name] == true then										--warrants are evaluated after the player data is set so that if this is the user's first time connecting under this bot session, it doesn't cause any errors.
 		log.info("Banned " .. name .. " due to warrant!")
@@ -887,6 +893,17 @@ client:hook("OnUserConnected", "When someone connects, update their information.
 	if msgen then
 		event.user:message(motd)
 	end
+
+	for _,server in ipairs(advNamed.pugs) do --Due to the way information is updated in Lumble, we need to keep our own records on channel lengths.
+		for _,room in pairs(server) do
+			if room.object == event.user:getChannel() then
+				room.length = room.length + 1
+				return
+			end
+		end
+	end
+
+        if prisonen and players[name].imprison then event.user:move(players[name].imprison) end
 end)
 
 client:hook("OnUserRemove", "When someone leaves the server, whether of their own volition or by the actions of a moderator", function(client, event)
@@ -954,10 +971,11 @@ client:hook("OnUserChannel", "When someone changes channel", function(client, ev
 			event.user:message("You need to be an admin")
 		end
 	end
-	if players[event.user:getName():lower()].imprison then						--if user must be imprisoned in one channel
-		if event.actor == event.user then event.user:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be unimprisoned, ask an admin to release you.") end	
-		event.user:move(players[event.user:getName():lower()].imprison)
-		return
+	if prisonen and players[event.user:getName():lower()].imprison then	--if user must be imprisoned in one channel
+		if event.to ~= players[event.user:getName():lower()].imprison then --if then've been moved to a channel that isn't their prison
+			if event.actor == event.user then event.user:message("Thanks for volunteering! You've been temporarily imprisoned to this channel until the game is over to prevent trolling. If you believe there's been an error and wish to be unimprisoned, ask an admin to release you.") end	
+			event.user:move(players[event.user:getName():lower()].imprison)
+		end
 	end
 	if dle and ns.draftlock and event.to == ns.addup and not isAdmin(event.actor) then
 		if event.actor ~= event.user then
@@ -969,16 +987,19 @@ client:hook("OnUserChannel", "When someone changes channel", function(client, ev
 	else
 		local u = players[event.user:getName():lower()]
 		if u.dontUpdate == false and ns.pugs then
-			for _,server in ipairs(ns.pugs) do
-				for _,room in pairs(server) do
+			for idx,server in ipairs(ns.pugs) do
+				for color,room in pairs(server) do
 					if event.from == room.object then
 						room.length = room.length - 1
+						log.trace("Changing rl %s:%s = %s", idx,color, room.length)
 					elseif event.to == room.object then
 						room.length = room.length + 1
+						log.trace("Changing rl %s:%s = %s", idx,color, room.length)
 					end
 				end
 			end
 		else
+			log.trace("dontUpdate is true, setting to false for %s", event.user:getName())
 			u.dontUpdate = false
 		end
 		u.channelB = event.to
@@ -1026,3 +1047,16 @@ end, "execute a bot command")
 concommand.Add("clearmeds", function(cmdname, args) --ideally only called by cron job
 	cmd.clearmh({admin = true, sender=client.me, sender_name="SU"})
 end, "clear medic history")
+
+concommand.Add("plens", function(cmdname, args)
+	for _, server in ipairs(advNamed.pugs) do
+		for color, channel in pairs(server) do
+			local c = channel.object:getParent():getName():match("%d")
+			log.info("Server %d:%s lens: (PJ %d/Lmble %d)", c, color, channel.length, getlen(channel.object))
+		end
+	end
+end, "Print the lengths of each pug channel (allegedly)")
+
+concommand.Add("setlevel", function(cmdname, args)
+	log.setLevel(args[1])
+end, "Set log level")
