@@ -254,19 +254,19 @@ client:hook("OnServerSync", function(client, joe)	--this is where the initializa
 	local _date = os.date('*t')
 	_date = _date.month.."/".._date.day
 	log.info("===========================================", false)
-	log.info("Connected, Syncd as %s v4.4.0b on %s", joe:getName() ,_date)
+	log.info("Connected, Syncd as %s v4.5.0b on %s", joe:getName() ,_date)
 	log.info("===========================================", false)
 	------------------------------------------------
 	root = client:getChannelRoot()
-	pugroot = root:get("./Pugs")
-	spacebase = root:get("./BASKETBALL COURT")
+	pugroot = root:get(conn.pugroot_path)
+	spacebase = root:get(conn.spacebase_path)
 	------------------------------------------------"advanced" pugs (advanced to distinguish from junior)
 	local dl = advNamed.draftlock
 	advNamed = {
 		root = pugroot,
 		connectlobby = pugroot,
-		addup = pugroot:get("./Add Up"),
-		notplaying = root:get("./CHILL ROOM"),
+		addup = pugroot:get(conn.addup_path),
+		notplaying = root:get(conn.chill_path),
 		draftlock = dl or false
 	}
 	------------ok jr pugs now----------------------
@@ -754,7 +754,7 @@ function cmd.v(ctx, args)
 				ctx.sender:message("You can't volunteer, this medic is already a volunteer") 
 				return -102.5
 			end		
-			if string.find(recipient.object:getChannel():getParent():getName(), "Pug Server %d") == nil then
+			if string.find(recipient.object:getChannel():getParent():getName(), conn.server_pattern) == nil then
 				ctx.sender:message("This can't be done, the person you're trying to volunteer for isn't even in a pug server!")
 				return -102.6
 			end			
