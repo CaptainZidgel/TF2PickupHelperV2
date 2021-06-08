@@ -1,0 +1,29 @@
+connect.lua is a file in the Lumble folder containing these parameters
+
+conn.key = str path to key from Lumble folder
+conn.pem = str path to pem/certificate from Lumble folder
+conn.ip = str hostname/ip to connect to
+conn.port = number port
+
+conn.motd = str message of the day
+conn.motd_enabled = bool
+conn.draftlock_enabled = bool (whether draftlock should be enforced, NOT whether the draft is currently locked)
+conn.prison_enabled = bool (whether users who volunteer as medic should be forced into their channels)
+
+conn.pugroot_path = str path from root channel to where pugs are rooted in (the channel Add Up and pug servers are in, etc)
+conn.spacebase_path = str path from root channel to where the bot sits
+conn.addup_path = str path from pugroot channel to channel where users add up
+conn.chill_path = str path from root channel to channel where users can sit when they're not playing
+conn.server_pattern = str lua pattern for describing the format of Pug server channel names (i.e. "Pug %d", "Pug Server %d")
+
+Please note NONE of these values have defaults except bools default to false, and the bot will not work if you do not set up the string variables.
+
+You may format it like this: (Why am I explaining this, you know how Lua works.)
+
+```file begin
+return {
+	key = ...,
+	pem = ...,
+	...,etc
+}
+```file end
